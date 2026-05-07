@@ -3,9 +3,14 @@ import { Server as SocketIOServer } from 'socket.io';
 import { createApp } from './app';
 import { connectDb } from './config/db';
 import { env } from './config/env';
+import { scheduleDailyPuzzleJob, runDailyPuzzleJob } from './jobs/dailyPuzzleJob';
 
 async function main() {
   await connectDb();
+
+  // Seed today's puzzles if missing, then schedule nightly generation
+  await runDailyPuzzleJob().catch((err) => console.error('[startup] puzzle seed failed:', err));
+  scheduleDailyPuzzleJob();
 
   const app = createApp();
   const server = http.createServer(app);
