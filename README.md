@@ -58,9 +58,10 @@ npm run dev:server
 
 ## Branch workflow
 
-- `main` is protected — PR + 1 reviewer required.
-- Branch off `develop` for features: `feat/<area>-<short-desc>` (e.g. `feat/auth-jwt-login`).
-- Squash-merge PRs back into `develop`. Cut `develop` → `main` for releases.
+- `main` is protected — PR + 1 reviewer required. Always deployable.
+- Branch off `main` for features: `feat/<area>-<short-desc>` (e.g. `feat/auth-jwt-login`).
+- Open PR back into `main`, get 1 review, squash-merge.
+- Pull latest `main` before starting a new branch.
 
 ## Task ownership
 
