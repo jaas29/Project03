@@ -1,0 +1,16 @@
+{
+  "name": "jogo-bonito-daily",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CEN 3020 Project 03 — daily soccer puzzles + real-time duels",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=server",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  }
+}
