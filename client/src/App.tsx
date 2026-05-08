@@ -3,6 +3,7 @@ import { useAuth } from './store/auth';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Home from './pages/Home';
+import Duel from './pages/Duel';
 
 function ProtectedRoute({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
@@ -53,6 +54,14 @@ export default function App() {
           <PublicOnlyRoute>
             <Register />
           </PublicOnlyRoute>
+        }
+      />
+      <Route
+        path="/duel"
+        element={
+          <ProtectedRoute>
+            <Duel />
+          </ProtectedRoute>
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />

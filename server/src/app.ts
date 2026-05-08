@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
+import { duelsRouter } from './routes/duels';
 
 export function createApp() {
   const app = express();
@@ -17,10 +18,11 @@ export function createApp() {
     res.json({ status: 'ok', uptime: process.uptime() });
   });
 
+  app.use('/api/duels', duelsRouter);
+
   // TODO: mount routes
   // app.use('/api/auth', authRouter);
   // app.use('/api/puzzles', puzzlesRouter);
-  // app.use('/api/duels', duelsRouter);
   // app.use('/api/leaderboard', leaderboardRouter);
   // app.use('/api/admin', adminRouter);
 
