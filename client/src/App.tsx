@@ -1,15 +1,61 @@
-function App() {
-  return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-xl text-center space-y-4">
-        <h1 className="text-4xl font-bold text-pitch-500">Jogo Bonito Daily</h1>
-        <p className="text-neutral-300">
-          Daily soccer puzzles + real-time duels. Scaffold in progress.
-        </p>
-        <p className="text-sm text-neutral-500">CEN 3020 Project 03 — Spring 2026</p>
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from './store/auth';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Home from './pages/Home';
+
+function ProtectedRoute({ children }: { children: React.ReactElement }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-cream-50 font-mono text-[11px] uppercase tracking-widest text-ink-soft">
+        Loading…
       </div>
-    </div>
-  );
+    );
+  }
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
+  return children;
 }
 
-export default App;
+function PublicOnlyRoute({ children }: { children: React.ReactElement }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user) return <Navigate to="/" replace />;
+  return children;
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Home />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/login"
+        element={
+          <PublicOnlyRoute>
+            <Login />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <PublicOnlyRoute>
+            <Register />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
