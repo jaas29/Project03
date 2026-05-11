@@ -201,3 +201,66 @@ export async function generateWordle(): Promise<{ payload: WordlePayload; soluti
     solution: { answer: entry.word },
   };
 }
+
+// ─── Higher / Lower ─────────────────────────────────────────────────────────
+// Guess whether a player's transfer value is higher or lower than the previous.
+
+export interface HigherLowerPlayer {
+  name: string;
+  club: string;
+  nationality: string;
+  position: string;
+  /** Value in millions EUR — shown only after guess */
+  valueMEur: number;
+}
+
+export interface HigherLowerPayload {
+  /** Ordered list of players; client shows one at a time */
+  players: Omit<HigherLowerPlayer, 'valueMEur'>[];
+  rounds: number;
+}
+
+export interface HigherLowerSolution {
+  values: number[]; // valueMEur in same order as players
+}
+
+const HIGHER_LOWER_POOL: HigherLowerPlayer[] = [
+  { name: 'Kylian Mbappé',      club: 'Real Madrid',       nationality: 'France',    position: 'Forward',    valueMEur: 180 },
+  { name: 'Erling Haaland',     club: 'Manchester City',   nationality: 'Norway',    position: 'Forward',    valueMEur: 180 },
+  { name: 'Vinicius Jr.',       club: 'Real Madrid',       nationality: 'Brazil',    position: 'Forward',    valueMEur: 180 },
+  { name: 'Jude Bellingham',    club: 'Real Madrid',       nationality: 'England',   position: 'Midfielder', valueMEur: 180 },
+  { name: 'Bukayo Saka',        club: 'Arsenal',           nationality: 'England',   position: 'Winger',     valueMEur: 160 },
+  { name: 'Florian Wirtz',      club: 'Bayer Leverkusen',  nationality: 'Germany',   position: 'Midfielder', valueMEur: 150 },
+  { name: 'Rodri',              club: 'Manchester City',   nationality: 'Spain',     position: 'Midfielder', valueMEur: 150 },
+  { name: 'Phil Foden',         club: 'Manchester City',   nationality: 'England',   position: 'Midfielder', valueMEur: 150 },
+  { name: 'Pedri',              club: 'Barcelona',         nationality: 'Spain',     position: 'Midfielder', valueMEur: 120 },
+  { name: 'Lamine Yamal',       club: 'Barcelona',         nationality: 'Spain',     position: 'Winger',     valueMEur: 120 },
+  { name: 'Mohamed Salah',      club: 'Liverpool',         nationality: 'Egypt',     position: 'Forward',    valueMEur: 60  },
+  { name: 'Harry Kane',         club: 'Bayern Munich',     nationality: 'England',   position: 'Forward',    valueMEur: 90  },
+  { name: 'Jamal Musiala',      club: 'Bayern Munich',     nationality: 'Germany',   position: 'Midfielder', valueMEur: 130 },
+  { name: 'Gavi',               club: 'Barcelona',         nationality: 'Spain',     position: 'Midfielder', valueMEur: 90  },
+  { name: 'Declan Rice',        club: 'Arsenal',           nationality: 'England',   position: 'Midfielder', valueMEur: 120 },
+  { name: 'Nico Williams',      club: 'Athletic Bilbao',   nationality: 'Spain',     position: 'Winger',     valueMEur: 100 },
+  { name: 'Raphinha',           club: 'Barcelona',         nationality: 'Brazil',    position: 'Winger',     valueMEur: 90  },
+  { name: 'Victor Osimhen',     club: 'Napoli',            nationality: 'Nigeria',   position: 'Forward',    valueMEur: 75  },
+  { name: 'Marcus Rashford',    club: 'Manchester United', nationality: 'England',   position: 'Forward',    valueMEur: 50  },
+  { name: 'Trent Alexander-Arnold', club: 'Real Madrid',  nationality: 'England',   position: 'Defender',   valueMEur: 80  },
+];
+
+const ROUNDS = 8;
+
+export async function generateHigherLower(): Promise<{ payload: HigherLowerPayload; solution: HigherLowerSolution }> {
+  const players = pick(HIGHER_LOWER_POOL, ROUNDS);
+
+  return {
+    payload: {
+      players: players.map(({ name, club, nationality, position }) => ({
+        name, club, nationality, position,
+      })),
+      rounds: ROUNDS,
+    },
+    solution: {
+      values: players.map((p) => p.valueMEur),
+    },
+  };
+}

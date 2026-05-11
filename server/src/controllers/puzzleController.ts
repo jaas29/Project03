@@ -10,7 +10,7 @@ function todayUTC(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-const PUZZLE_TYPES: PuzzleType[] = ['grid', 'connections', 'wordle'];
+const PUZZLE_TYPES: PuzzleType[] = ['grid', 'connections', 'wordle', 'higherlower'];
 
 export async function getTodayPuzzles(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -57,7 +57,7 @@ export async function submitPuzzle(req: Request, res: Response, next: NextFuncti
     }
 
     // requireAuth middleware attaches req.user; fall back to anonymous score only
-    const userId = (req as Request & { user?: { id: string } }).user?.id;
+    const userId = req.user?.sub;
 
     const score = calculateScore({
       type: puzzle.type as PuzzleType,
