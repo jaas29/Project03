@@ -10,6 +10,24 @@ function todayUTC(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+export async function getActiveMatch(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user!.sub;
+    const match = await DuelMatch.findOne({
+      players: userId,
+      status: { $in: ['active', 'pending'] },
+    })
+      .populate('players', 'username elo')
+      .populate('puzzleId', '-solution')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({ match: match ?? null });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function createHotseat(req: Request, res: Response, next: NextFunction) {
   try {
     const { opponentUsername, puzzleType } = req.body as {

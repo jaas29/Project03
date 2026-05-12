@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
 import { Wordmark } from '../components/Wordmark';
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
 
 export default function Home() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const today = new Date()
     .toLocaleDateString('en-US', {
@@ -89,7 +90,7 @@ export default function Home() {
             color="pitch-jersey"
             title="Football Grid"
             blurb="Place a player at every intersection."
-            stats="—"
+
             status="Coming soon"
             icon={<GridIcon />}
           />
@@ -98,7 +99,7 @@ export default function Home() {
             color="flame"
             title="Connections"
             blurb="Find four hidden football themes."
-            stats="—"
+
             status="Coming soon"
             icon={<ConnectionsIcon />}
           />
@@ -107,7 +108,7 @@ export default function Home() {
             color="gold"
             title="Soccer Wordle"
             blurb="Five letters. One footballer."
-            stats="—"
+
             status="Coming soon"
             icon={<WordleIcon />}
           />
@@ -117,24 +118,24 @@ export default function Home() {
         <section className="mt-12 grid gap-6 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <p className="font-mono text-[11px] font-medium uppercase tracking-widest text-gold-dark">
-              1v1 duel · soon
+              1v1 Duel · Live
             </p>
             <h2 className="mt-2 font-display text-4xl leading-tight text-ink lg:text-5xl">
               Find a rival.<br />Solve. Win.
             </h2>
             <p className="mt-2 font-mono text-[12px] uppercase tracking-widest text-ink-soft">
-              Bruno is wiring this up. Hot-seat first, online next week.
+              Hot-seat or online — pick your puzzle and go.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <button
-                disabled
-                className="rounded-full bg-gold px-6 py-3 font-display text-sm uppercase tracking-widest text-ink shadow-card-lift transition-transform disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => navigate('/duel')}
+                className="rounded-full bg-gold px-6 py-3 font-display text-sm uppercase tracking-widest text-ink shadow-card-lift transition-transform hover:-translate-y-0.5"
               >
                 Quickplay
               </button>
               <button
-                disabled
-                className="rounded-full border-2 border-ink bg-cream-50 px-6 py-3 font-display text-sm uppercase tracking-widest text-ink transition-transform disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => navigate('/duel')}
+                className="rounded-full border-2 border-ink bg-cream-50 px-6 py-3 font-display text-sm uppercase tracking-widest text-ink transition-transform hover:-translate-y-0.5"
               >
                 Invite friend
               </button>
@@ -188,12 +189,11 @@ interface GameCardProps {
   color: 'pitch-jersey' | 'flame' | 'gold';
   title: string;
   blurb: string;
-  stats: string;
   status: string;
   icon: React.ReactNode;
 }
 
-function GameCard({ number, color, title, blurb, stats, status, icon }: GameCardProps) {
+function GameCard({ number, color, title, blurb, status, icon }: GameCardProps) {
   const bgMap = {
     'pitch-jersey': 'bg-pitch-jersey',
     flame: 'bg-flame',
