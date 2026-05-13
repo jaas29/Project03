@@ -4,6 +4,7 @@ import { createApp } from './app';
 import { connectDb } from './config/db';
 import { env } from './config/env';
 import { scheduleDailyPuzzleJob, runDailyPuzzleJob } from './jobs/dailyPuzzleJob';
+import { registerDuelSocket } from './sockets/duelSocket';
 
 async function main() {
   await connectDb();
@@ -21,6 +22,7 @@ async function main() {
 
   io.on('connection', (socket) => {
     console.log('[socket] client connected', socket.id);
+    registerDuelSocket(io, socket);
     socket.on('disconnect', () => {
       console.log('[socket] client disconnected', socket.id);
     });

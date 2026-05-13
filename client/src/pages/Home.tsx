@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
 import { Wordmark } from '../components/Wordmark';
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
 
 export default function Home() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const today = new Date()
     .toLocaleDateString('en-US', {
@@ -30,7 +31,7 @@ export default function Home() {
           <div className="flex items-center gap-10">
             <Wordmark variant="dark" size="sm" />
             <nav className="hidden items-center gap-1 md:flex">
-              {NAV_ITEMS.map((item) => {
+              {[...NAV_ITEMS, ...(user?.role === 'admin' ? [{ label: 'Admin', to: '/admin' }] : [])].map((item) => {
                 const active = item.label === 'Today';
                 return (
                   <Link
@@ -89,8 +90,8 @@ export default function Home() {
             color="pitch-jersey"
             title="Football Grid"
             blurb="Place a player at every intersection."
-            stats="—"
-            status="Coming soon"
+            status="Ready"
+            to="/play/grid"
             icon={<GridIcon />}
           />
           <GameCard
@@ -98,8 +99,8 @@ export default function Home() {
             color="flame"
             title="Connections"
             blurb="Find four hidden football themes."
-            stats="—"
-            status="Coming soon"
+            status="Next"
+            to="/play/connections"
             icon={<ConnectionsIcon />}
           />
           <GameCard
@@ -107,8 +108,8 @@ export default function Home() {
             color="gold"
             title="Soccer Wordle"
             blurb="Five letters. One footballer."
-            stats="—"
-            status="Coming soon"
+            status="Next"
+            to="/play/wordle"
             icon={<WordleIcon />}
           />
         </section>
@@ -117,24 +118,24 @@ export default function Home() {
         <section className="mt-12 grid gap-6 lg:grid-cols-12">
           <div className="lg:col-span-7">
             <p className="font-mono text-[11px] font-medium uppercase tracking-widest text-gold-dark">
-              1v1 duel · soon
+              1v1 Duel · Live
             </p>
             <h2 className="mt-2 font-display text-4xl leading-tight text-ink lg:text-5xl">
               Find a rival.<br />Solve. Win.
             </h2>
             <p className="mt-2 font-mono text-[12px] uppercase tracking-widest text-ink-soft">
-              Bruno is wiring this up. Hot-seat first, online next week.
+              Hot-seat or online — pick your puzzle and go.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <button
-                disabled
-                className="rounded-full bg-gold px-6 py-3 font-display text-sm uppercase tracking-widest text-ink shadow-card-lift transition-transform disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => navigate('/duel')}
+                className="rounded-full bg-gold px-6 py-3 font-display text-sm uppercase tracking-widest text-ink shadow-card-lift transition-transform hover:-translate-y-0.5"
               >
                 Quickplay
               </button>
               <button
-                disabled
-                className="rounded-full border-2 border-ink bg-cream-50 px-6 py-3 font-display text-sm uppercase tracking-widest text-ink transition-transform disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => navigate('/duel')}
+                className="rounded-full border-2 border-ink bg-cream-50 px-6 py-3 font-display text-sm uppercase tracking-widest text-ink transition-transform hover:-translate-y-0.5"
               >
                 Invite friend
               </button>
@@ -188,12 +189,12 @@ interface GameCardProps {
   color: 'pitch-jersey' | 'flame' | 'gold';
   title: string;
   blurb: string;
-  stats: string;
   status: string;
+  to: string;
   icon: React.ReactNode;
 }
 
-function GameCard({ number, color, title, blurb, stats, status, icon }: GameCardProps) {
+function GameCard({ number, color, title, blurb, status, to, icon }: GameCardProps) {
   const bgMap = {
     'pitch-jersey': 'bg-pitch-jersey',
     flame: 'bg-flame',
@@ -221,12 +222,12 @@ function GameCard({ number, color, title, blurb, stats, status, icon }: GameCard
         <div className="font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
           {status}
         </div>
-        <button
-          disabled
-          className="rounded-full bg-ink px-4 py-2 font-display text-[11px] uppercase tracking-widest text-cream-50 disabled:cursor-not-allowed disabled:opacity-40"
+        <Link
+          to={to}
+          className="rounded-full bg-ink px-4 py-2 font-display text-[11px] uppercase tracking-widest text-cream-50 transition-transform hover:-translate-y-0.5"
         >
           Play →
-        </button>
+        </Link>
       </div>
     </article>
   );

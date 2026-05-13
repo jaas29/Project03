@@ -32,6 +32,6 @@ export function toPublicUser(u: UserDoc) {
     username: u.username,
     role: u.role,
     elo: u.elo,
-    streak: u.streak.current,
+    streak: u.streak?.current ?? 0,
   };
 }

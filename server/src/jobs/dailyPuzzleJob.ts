@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { generateGrid, generateConnections, generateWordle } from '../services/puzzleGenerator';
+import { generateGrid, generateConnections, generateWordle, generateHigherLower } from '../services/puzzleGenerator';
 import { Puzzle } from '../models/Puzzle';
 import { PuzzleType } from '../types/puzzle';
 
@@ -37,6 +37,7 @@ export async function runDailyPuzzleJob(): Promise<void> {
     generateAndSave('grid', date, generateGrid),
     generateAndSave('connections', date, generateConnections),
     generateAndSave('wordle', date, generateWordle),
+    generateAndSave('higherlower', date, generateHigherLower),
   ]);
 
   console.log('[cron] done');

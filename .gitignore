@@ -32,3 +32,6 @@ coverage/
 # misc
 .cache/
 .turbo/
+
+# claude
+.claude/

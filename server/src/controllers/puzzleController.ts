@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { Puzzle } from '../models/Puzzle';
 import { PlayResult } from '../models/PlayResult';
+import { User } from '../models/User';
 import { calculateScore } from '../services/scoreCalculator';
 import { runDailyPuzzleJob } from '../jobs/dailyPuzzleJob';
 import { PuzzleType } from '../types/puzzle';
@@ -10,7 +11,7 @@ function todayUTC(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-const PUZZLE_TYPES: PuzzleType[] = ['grid', 'connections', 'wordle'];
+const PUZZLE_TYPES: PuzzleType[] = ['grid', 'connections', 'wordle', 'higherlower'];
 
 export async function getTodayPuzzles(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -57,7 +58,7 @@ export async function submitPuzzle(req: Request, res: Response, next: NextFuncti
     }
 
     // requireAuth middleware attaches req.user; fall back to anonymous score only
-    const userId = (req as Request & { user?: { id: string } }).user?.id;
+    const userId = req.user?.sub;
 
     const score = calculateScore({
       type: puzzle.type as PuzzleType,
@@ -65,6 +66,8 @@ export async function submitPuzzle(req: Request, res: Response, next: NextFuncti
       durationMs: body.durationMs,
       solved: body.solved,
     });
+
+    let streak: number | undefined;
 
     if (userId) {
       const existing = await PlayResult.findOne({ userId, puzzleId: puzzle._id });
@@ -79,12 +82,43 @@ export async function submitPuzzle(req: Request, res: Response, next: NextFuncti
         attempts: body.attempts,
         durationMs: body.durationMs,
       });
+
+      if (body.solved) {
+        streak = await updateStreak(userId, todayUTC());
+      }
     }
 
-    res.json({ score, solution: body.solved ? undefined : puzzle.solution });
+    res.json({ score, streak, solution: body.solved ? undefined : puzzle.solution });
   } catch (err) {
     next(err);
   }
+}
+
+async function updateStreak(userId: string, today: string): Promise<number> {
+  const user = await User.findById(userId);
+  if (!user) return 0;
+
+  const last = user.streak?.lastPlayedDate;
+  const yesterday = new Date(today);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+  let current = user.streak?.current ?? 0;
+  const best = user.streak?.best ?? 0;
+
+  if (last === today) return current; // already counted today
+
+  current = last === yesterdayStr ? current + 1 : 1;
+  const newBest = Math.max(best, current);
+
+  await User.findByIdAndUpdate(userId, {
+    'streak.current': current,
+    'streak.best': newBest,
+    'streak.lastPlayedDate': today,
+    $inc: { 'stats.played': 1 },
+  });
+
+  return current;
 }
 
 // Admin: force-regenerate today's puzzles

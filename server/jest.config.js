@@ -5,4 +5,5 @@ module.exports = {
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
   collectCoverageFrom: ['src/**/*.ts', '!src/server.ts'],
+  setupFiles: ['dotenv/config'],
 };
