@@ -4,6 +4,10 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Home from './pages/Home';
 import Duel from './pages/Duel';
+import Ranks from './pages/Ranks';
+import Profile from './pages/Profile';
+import Admin from './pages/Admin';
+import PuzzlePlay from './pages/PuzzlePlay';
 
 function ProtectedRoute({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
@@ -61,6 +65,38 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Duel />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/play/:type"
+        element={
+          <ProtectedRoute>
+            <PuzzlePlay />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ranks"
+        element={
+          <ProtectedRoute>
+            <Ranks />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <Admin />
           </ProtectedRoute>
         }
       />
