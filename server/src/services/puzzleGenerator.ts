@@ -1,4 +1,4 @@
-import { getCompetitionTeams, getTeamSquad, SUPPORTED_COMPETITIONS, FdTeam } from './footballApi';
+import { getLeagueTeams, getTeamSquad, SUPPORTED_COMPETITIONS, LeagueCode } from './footballApi';
 
 // ─── Shared helpers ────────────────────────────────────────────────────────
 
@@ -35,47 +35,66 @@ export interface GridSolution {
   cells: Record<string, string>; // key = "row,col", value = player name
 }
 
+// Static fallback used when football-data.org API is unavailable
+const GRID_FALLBACK: { payload: GridPayload; solution: GridSolution } = {
+  payload: {
+    rows: ['PL', 'PD', 'BL1'],
+    cols: ['MCI', 'FCB', 'FCB'],
+    teamMeta: {
+      MCI:  { name: 'Manchester City',   crest: '' },
+      FCB:  { name: 'FC Barcelona',      crest: '' },
+      FCBM: { name: 'FC Bayern München', crest: '' },
+    },
+  },
+  solution: {
+    cells: {
+      'PL,MCI':  'Kevin De Bruyne',  'PL,FCB':  'Raheem Sterling', 'PL,FCBM': 'Harry Kane',
+      'PD,MCI':  'Rodri',           'PD,FCB':  'Pedri',           'PD,FCBM': 'Robert Lewandowski',
+      'BL1,MCI': 'İlkay Gündoğan', 'BL1,FCB': 'Gavi',            'BL1,FCBM': 'Thomas Müller',
+    },
+  },
+};
+
 export async function generateGrid(): Promise<{ payload: GridPayload; solution: GridSolution }> {
-  const competitionCodes = pick([...SUPPORTED_COMPETITIONS], 3);
+  try {
+    const competitionCodes = pick([...SUPPORTED_COMPETITIONS], 3) as LeagueCode[];
 
-  const teamsByComp: Record<string, FdTeam[]> = {};
-  for (const code of competitionCodes) {
-    const { teams } = await getCompetitionTeams(code);
-    teamsByComp[code] = teams;
-  }
+    const teamsByComp: Record<string, Awaited<ReturnType<typeof getLeagueTeams>>> = {};
+    for (const code of competitionCodes) {
+      teamsByComp[code] = await getLeagueTeams(code);
+    }
 
-  // Pick 3 teams that appear in at least 2 of the chosen competitions
-  const allTeams = Object.values(teamsByComp).flat();
-  const uniqueTeams = [...new Map(allTeams.map((t) => [t.id, t])).values()];
-  const colTeams = pick(uniqueTeams, 3);
+    const allTeams = Object.values(teamsByComp).flat();
+    const uniqueTeams = [...new Map(allTeams.map((t) => [t.idTeam, t])).values()];
+    const colTeams = pick(uniqueTeams, 3);
 
-  const teamMeta: GridPayload['teamMeta'] = {};
-  for (const t of colTeams) {
-    teamMeta[t.tla] = { name: t.name, crest: t.crest };
-  }
+    const teamMeta: GridPayload['teamMeta'] = {};
+    for (const t of colTeams) {
+      const key = t.strTeamShort || t.strTeam.slice(0, 3).toUpperCase();
+      teamMeta[key] = { name: t.strTeam, crest: t.strBadge };
+    }
 
-  const cells: GridSolution['cells'] = {};
-
-  for (const code of competitionCodes) {
-    for (const team of colTeams) {
-      try {
-        const { team: teamData } = await getTeamSquad(team.id);
-        const squadNames = (teamData.squad ?? []).map((p) => p.name);
-        cells[`${code},${team.tla}`] = pickOne(squadNames) ?? '?';
-      } catch {
-        cells[`${code},${team.tla}`] = '?';
+    const cells: GridSolution['cells'] = {};
+    for (const code of competitionCodes) {
+      for (const team of colTeams) {
+        const key = team.strTeamShort || team.strTeam.slice(0, 3).toUpperCase();
+        try {
+          const players = await getTeamSquad(team.idTeam);
+          cells[`${code},${key}`] = pickOne(players)?.strPlayer ?? '?';
+        } catch {
+          cells[`${code},${key}`] = '?';
+        }
       }
     }
-  }
 
-  return {
-    payload: {
-      rows: competitionCodes,
-      cols: colTeams.map((t) => t.tla),
-      teamMeta,
-    },
-    solution: { cells },
-  };
+    return {
+      payload: { rows: competitionCodes, cols: colTeams.map((t) => t.strTeamShort || t.strTeam.slice(0, 3).toUpperCase()), teamMeta },
+      solution: { cells },
+    };
+  } catch {
+    // API unavailable — serve static fallback so Grid always generates
+    return GRID_FALLBACK;
+  }
 }
 
 // ─── Connections ────────────────────────────────────────────────────────────
@@ -96,57 +115,27 @@ export interface ConnectionsSolution {
   groups: ConnectionsGroup[];
 }
 
-const STATIC_GROUPS: ConnectionsGroup[] = [
-  {
-    category: 'La Liga clubs',
-    color: 'yellow',
-    items: ['Real Madrid', 'Barcelona', 'Atlético Madrid', 'Sevilla'],
-  },
-  {
-    category: 'Premier League clubs',
-    color: 'green',
-    items: ['Arsenal', 'Chelsea', 'Liverpool', 'Manchester City'],
-  },
-  {
-    category: 'Serie A clubs',
-    color: 'blue',
-    items: ['Juventus', 'Inter Milan', 'AC Milan', 'Napoli'],
-  },
-  {
-    category: 'Bundesliga clubs',
-    color: 'purple',
-    items: ['Bayern Munich', 'Borussia Dortmund', 'RB Leipzig', 'Bayer Leverkusen'],
-  },
+const ALL_CONNECTIONS_GROUPS: ConnectionsGroup[] = [
+  { category: 'La Liga clubs',        color: 'yellow', items: ['Real Madrid', 'Barcelona', 'Atlético Madrid', 'Sevilla'] },
+  { category: 'Premier League clubs', color: 'green',  items: ['Arsenal', 'Chelsea', 'Liverpool', 'Manchester City'] },
+  { category: 'Serie A clubs',        color: 'blue',   items: ['Juventus', 'Inter Milan', 'AC Milan', 'Napoli'] },
+  { category: 'Bundesliga clubs',     color: 'purple', items: ['Bayern Munich', 'Borussia Dortmund', 'RB Leipzig', 'Bayer Leverkusen'] },
+  { category: 'Brazilian clubs',      color: 'yellow', items: ['Flamengo', 'Palmeiras', 'Santos', 'Corinthians'] },
+  { category: 'Portuguese clubs',     color: 'green',  items: ['Benfica', 'Porto', 'Sporting CP', 'Braga'] },
+  { category: 'Argentine clubs',      color: 'blue',   items: ['Boca Juniors', 'River Plate', 'Racing Club', 'San Lorenzo'] },
+  { category: 'Dutch clubs',          color: 'purple', items: ['Ajax', 'PSV', 'Feyenoord', 'AZ Alkmaar'] },
+  { category: 'French clubs',         color: 'yellow', items: ['PSG', 'Olympique Lyon', 'Marseille', 'Monaco'] },
+  { category: 'Turkish clubs',        color: 'green',  items: ['Galatasaray', 'Fenerbahçe', 'Beşiktaş', 'Trabzonspor'] },
+  { category: 'Mexican clubs',        color: 'blue',   items: ['Club América', 'Chivas', 'Cruz Azul', 'Tigres'] },
+  { category: 'English legends',      color: 'purple', items: ['Wayne Rooney', 'Steven Gerrard', 'Frank Lampard', 'Alan Shearer'] },
+  { category: 'Spanish legends',      color: 'yellow', items: ['Raúl', 'Xavi', 'Andrés Iniesta', 'David Villa'] },
+  { category: 'South American legends', color: 'green', items: ['Pelé', 'Diego Maradona', 'Ronaldinho', 'Gabriel Batistuta'] },
+  { category: 'Ballon d\'Or winners 2015–2024', color: 'blue', items: ['Luka Modrić', 'Lionel Messi', 'Karim Benzema', 'Rodri'] },
+  { category: 'FIFA World Cup hosts 2000s+', color: 'purple', items: ['South Korea/Japan', 'Germany', 'South Africa', 'Brazil'] },
 ];
-
-const EXTRA_GROUPS: ConnectionsGroup[] = [
-  {
-    category: 'Brazilian clubs',
-    color: 'yellow',
-    items: ['Flamengo', 'Palmeiras', 'Santos', 'Corinthians'],
-  },
-  {
-    category: 'Portuguese clubs',
-    color: 'green',
-    items: ['Benfica', 'Porto', 'Sporting CP', 'Braga'],
-  },
-  {
-    category: 'Argentine clubs',
-    color: 'blue',
-    items: ['Boca Juniors', 'River Plate', 'Racing Club', 'San Lorenzo'],
-  },
-  {
-    category: 'Dutch clubs',
-    color: 'purple',
-    items: ['Ajax', 'PSV', 'Feyenoord', 'AZ Alkmaar'],
-  },
-];
-
-const ALL_GROUP_POOLS = [STATIC_GROUPS, EXTRA_GROUPS];
 
 export async function generateConnections(): Promise<{ payload: ConnectionsPayload; solution: ConnectionsSolution }> {
-  const pool = pickOne(ALL_GROUP_POOLS);
-  const groups = pick(pool, 4) as ConnectionsGroup[];
+  const groups = pick(ALL_CONNECTIONS_GROUPS, 4) as ConnectionsGroup[];
   const items = pick(groups.flatMap((g) => g.items), 16);
 
   return {
@@ -170,21 +159,35 @@ export interface WordleSolution {
 
 const WORDLE_WORDS = [
   { word: 'MBAPPE', hint: 'French superstar, PSG & Real Madrid' },
-  { word: 'NEYMAR', hint: 'Brazilian forward' },
-  { word: 'MODRIC', hint: 'Croatian maestro' },
-  { word: 'KROOS', hint: 'German midfielder, retired 2024' },
-  { word: 'SALAH', hint: 'Egyptian King of Liverpool' },
-  { word: 'BENZEMA', hint: 'Ballon d\'Or 2022 winner' },
-  { word: 'CASEM', hint: 'Brazilian defensive midfielder' },
-  { word: 'ALISON', hint: 'Liverpool keeper' },
+  { word: 'MODRIC', hint: 'Croatian maestro, Real Madrid' },
+  { word: 'KROOS',  hint: 'German midfielder, retired 2024' },
+  { word: 'SALAH',  hint: 'Egyptian King of Liverpool' },
   { word: 'STONES', hint: 'Manchester City centre-back' },
-  { word: 'KANTE', hint: 'French box-to-box midfielder' },
+  { word: 'KANTE',  hint: 'French box-to-box midfielder' },
   { word: 'LUKAKU', hint: 'Belgian striker' },
   { word: 'GNABRY', hint: 'German winger, Bayern Munich' },
-  { word: 'SAKA', hint: 'England & Arsenal winger' },
-  { word: 'PEDRI', hint: 'Barcelona & Spain midfielder' },
-  { word: 'VINI', hint: 'Brazilian winger nickname' },
-  { word: 'PULISI', hint: 'American forward' },
+  { word: 'PEDRI',  hint: 'Barcelona & Spain midfielder' },
+  { word: 'ALABA',  hint: 'Austrian defender, Real Madrid' },
+  { word: 'KIMMICH', hint: 'German midfielder, Bayern Munich' },
+  { word: 'THIAGO', hint: 'Spanish-Brazilian midfielder' },
+  { word: 'PULISIC', hint: 'American forward, AC Milan' },
+  { word: 'RUDIGER', hint: 'German defender, Real Madrid' },
+  { word: 'MUSIALA', hint: 'Young German star, Bayern Munich' },
+  { word: 'YAMAL',  hint: 'Spanish teenage prodigy, Barcelona' },
+  { word: 'WIRTZ',  hint: 'German creative midfielder, Leverkusen' },
+  { word: 'GAVI',   hint: 'Spanish midfielder, Barcelona' },
+  { word: 'FODEN',  hint: 'English midfielder, Manchester City' },
+  { word: 'DIAZ',   hint: 'Colombian winger, Liverpool' },
+  { word: 'OLISE',  hint: 'French winger, Bayern Munich' },
+  { word: 'SAKA',   hint: 'English winger, Arsenal' },
+  { word: 'ODEGAARD', hint: 'Norwegian captain, Arsenal' },
+  { word: 'RICE',   hint: 'English midfielder, Arsenal' },
+  { word: 'TRENT',  hint: 'English right-back, now at Real Madrid' },
+  { word: 'CARVAJAL', hint: 'Spanish right-back, Real Madrid' },
+  { word: 'MILITAO', hint: 'Brazilian centre-back, Real Madrid' },
+  { word: 'CAMAVINGA', hint: 'French midfielder, Real Madrid' },
+  { word: 'BELLINGHAM', hint: 'English midfielder, Real Madrid' },
+  { word: 'OSIMHEN', hint: 'Nigerian striker, Napoli' },
 ];
 
 // Filter to only 5-6 letter words for Wordle-style play
