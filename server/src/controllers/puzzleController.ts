@@ -4,6 +4,7 @@ import { Puzzle } from '../models/Puzzle';
 import { PlayResult } from '../models/PlayResult';
 import { User } from '../models/User';
 import { calculateScore } from '../services/scoreCalculator';
+import { checkPuzzleGuess, validatePuzzleSubmission } from '../services/puzzleValidation';
 import { runDailyPuzzleJob } from '../jobs/dailyPuzzleJob';
 import { PuzzleType } from '../types/puzzle';
 
@@ -16,14 +17,14 @@ const PUZZLE_TYPES: PuzzleType[] = ['grid', 'connections', 'wordle', 'higherlowe
 export async function getTodayPuzzles(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const date = todayUTC();
-    let puzzles = await Puzzle.find({ date, type: { $in: PUZZLE_TYPES } }).select('-solution').lean();
+    let puzzles = await Puzzle.find({ date, type: { $in: PUZZLE_TYPES } }).lean();
 
     if (puzzles.length < PUZZLE_TYPES.length) {
       await runDailyPuzzleJob();
-      puzzles = await Puzzle.find({ date, type: { $in: PUZZLE_TYPES } }).select('-solution').lean();
+      puzzles = await Puzzle.find({ date, type: { $in: PUZZLE_TYPES } }).lean();
     }
 
-    res.json({ date, puzzles });
+    res.json({ date, puzzles: puzzles.map(toPublicPuzzle) });
   } catch (err) {
     next(err);
   }
@@ -31,22 +32,72 @@ export async function getTodayPuzzles(req: Request, res: Response, next: NextFun
 
 export async function getPuzzleById(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const puzzle = await Puzzle.findById(req.params.id).select('-solution');
+    const puzzle = await Puzzle.findById(req.params.id).lean();
     if (!puzzle) {
       res.status(404).json({ error: 'Puzzle not found' });
       return;
     }
-    res.json(puzzle);
+    res.json(toPublicPuzzle(puzzle));
   } catch (err) {
     next(err);
   }
 }
 
+function toPublicPuzzle(puzzle: { [key: string]: unknown; type?: unknown; payload?: unknown; solution?: unknown }) {
+  const { solution, ...publicPuzzle } = puzzle;
+  if (publicPuzzle.type !== 'grid' || !isRecord(publicPuzzle.payload)) return publicPuzzle;
+
+  const payload = { ...publicPuzzle.payload };
+  if (!Array.isArray(payload.playerPool) || payload.playerPool.length === 0) {
+    payload.playerPool = derivePlayerPool(solution);
+  }
+
+  return { ...publicPuzzle, payload };
+}
+
+function derivePlayerPool(solution: unknown): string[] {
+  if (!isRecord(solution) || !isRecord(solution.cells)) return [];
+  const names = Object.values(solution.cells).flatMap((value) => {
+    if (typeof value === 'string') return [value];
+    if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+    return [];
+  });
+  return [...new Set(names.filter((name) => name && name !== '?'))].sort();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 const SubmitSchema = z.object({
   attempts: z.number().int().positive(),
   durationMs: z.number().int().nonnegative(),
-  solved: z.boolean(),
+  solved: z.boolean().optional(),
+  guesses: z.unknown().optional(),
+  groups: z.unknown().optional(),
 });
+
+const CheckSchema = z.object({
+  cellKey: z.string().optional(),
+  guess: z.string().optional(),
+  group: z.array(z.string()).optional(),
+});
+
+export async function checkPuzzle(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const body = CheckSchema.parse(req.body);
+    const puzzle = await Puzzle.findById(req.params.id);
+    if (!puzzle) {
+      res.status(404).json({ error: 'Puzzle not found' });
+      return;
+    }
+
+    const result = checkPuzzleGuess(puzzle.type as PuzzleType, puzzle.solution, body);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
 
 export async function submitPuzzle(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -60,11 +111,14 @@ export async function submitPuzzle(req: Request, res: Response, next: NextFuncti
     // requireAuth middleware attaches req.user; fall back to anonymous score only
     const userId = req.user?.sub;
 
+    const puzzleType = puzzle.type as PuzzleType;
+    const validation = validatePuzzleSubmission(puzzleType, puzzle.solution, body);
+    const solved = validation.solved;
     const score = calculateScore({
-      type: puzzle.type as PuzzleType,
+      type: puzzleType,
       attempts: body.attempts,
       durationMs: body.durationMs,
-      solved: body.solved,
+      solved,
     });
 
     let streak: number | undefined;
@@ -83,12 +137,12 @@ export async function submitPuzzle(req: Request, res: Response, next: NextFuncti
         durationMs: body.durationMs,
       });
 
-      if (body.solved) {
+      if (solved) {
         streak = await updateStreak(userId, todayUTC());
       }
     }
 
-    res.json({ score, streak, solution: body.solved ? undefined : puzzle.solution });
+    res.json({ score, streak, solved, validation });
   } catch (err) {
     next(err);
   }

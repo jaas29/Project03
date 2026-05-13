@@ -15,6 +15,20 @@ function pickOne<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function teamKey(team: { strTeamShort?: string; strTeam: string }): string {
+  const short = team.strTeamShort?.trim();
+  if (short) return short.toUpperCase();
+
+  const words = team.strTeam
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 ]/g, '')
+    .split(/\s+/)
+    .filter(Boolean);
+  const initials = words.map((word) => word[0]).join('').slice(0, 4).toUpperCase();
+  return initials || team.strTeam.slice(0, 3).toUpperCase();
+}
+
 // ─── Football Grid ──────────────────────────────────────────────────────────
 // 3×3 grid: rows = competitions, cols = teams. Each cell = a player who
 // played for that team in that competition.
@@ -29,28 +43,43 @@ export interface GridPayload {
   rows: string[];  // 3 competition codes
   cols: string[];  // 3 team tlas + names
   teamMeta: Record<string, { name: string; crest: string }>;
+  playerPool?: string[]; // public autocomplete list; cell mapping stays hidden in solution
 }
 
 export interface GridSolution {
-  cells: Record<string, string>; // key = "row,col", value = player name
+  cells: Record<string, string | string[]>; // key = "row,col", value = accepted player names
 }
 
 // Static fallback used when football-data.org API is unavailable
 const GRID_FALLBACK: { payload: GridPayload; solution: GridSolution } = {
   payload: {
     rows: ['PL', 'PD', 'BL1'],
-    cols: ['MCI', 'FCB', 'FCB'],
+    cols: ['MCI', 'FCB', 'FCBM'],
     teamMeta: {
       MCI:  { name: 'Manchester City',   crest: '' },
       FCB:  { name: 'FC Barcelona',      crest: '' },
       FCBM: { name: 'FC Bayern München', crest: '' },
     },
+    playerPool: [
+      'Kevin De Bruyne', 'Raheem Sterling', 'Phil Foden',
+      'Thierry Henry', 'Cesc Fabregas', 'Ilkay Gundogan',
+      'Harry Kane', 'Sadio Mane', 'Leroy Sane',
+      'Rodri', 'David Silva', 'Pedri', 'Gavi',
+      'Robert Lewandowski', 'Xabi Alonso', 'Thiago Alcantara',
+      'Erling Haaland', 'Thomas Muller', 'Jamal Musiala',
+    ],
   },
   solution: {
     cells: {
-      'PL,MCI':  'Kevin De Bruyne',  'PL,FCB':  'Raheem Sterling', 'PL,FCBM': 'Harry Kane',
-      'PD,MCI':  'Rodri',           'PD,FCB':  'Pedri',           'PD,FCBM': 'Robert Lewandowski',
-      'BL1,MCI': 'İlkay Gündoğan', 'BL1,FCB': 'Gavi',            'BL1,FCBM': 'Thomas Müller',
+      'PL,MCI':  ['Kevin De Bruyne', 'Raheem Sterling', 'Phil Foden'],
+      'PL,FCB':  ['Thierry Henry', 'Cesc Fabregas', 'Ilkay Gundogan'],
+      'PL,FCBM': ['Harry Kane', 'Sadio Mane', 'Leroy Sane'],
+      'PD,MCI':  ['Rodri', 'David Silva', 'Ilkay Gundogan'],
+      'PD,FCB':  ['Pedri', 'Gavi', 'Robert Lewandowski'],
+      'PD,FCBM': ['Robert Lewandowski', 'Xabi Alonso', 'Thiago Alcantara'],
+      'BL1,MCI': ['Ilkay Gundogan', 'Erling Haaland', 'Kevin De Bruyne'],
+      'BL1,FCB': ['Robert Lewandowski', 'Ilkay Gundogan', 'Thierry Henry'],
+      'BL1,FCBM': ['Thomas Muller', 'Harry Kane', 'Jamal Musiala'],
     },
   },
 };
@@ -70,25 +99,36 @@ export async function generateGrid(): Promise<{ payload: GridPayload; solution: 
 
     const teamMeta: GridPayload['teamMeta'] = {};
     for (const t of colTeams) {
-      const key = t.strTeamShort || t.strTeam.slice(0, 3).toUpperCase();
+      const key = teamKey(t);
       teamMeta[key] = { name: t.strTeam, crest: t.strBadge };
     }
 
     const cells: GridSolution['cells'] = {};
+    const playerPool = new Set<string>();
     for (const code of competitionCodes) {
       for (const team of colTeams) {
-        const key = team.strTeamShort || team.strTeam.slice(0, 3).toUpperCase();
+        const key = teamKey(team);
         try {
           const players = await getTeamSquad(team.idTeam);
-          cells[`${code},${key}`] = pickOne(players)?.strPlayer ?? '?';
+          const playerNames = players.map((player) => player.strPlayer).filter(Boolean);
+          const acceptedNames = playerNames.length ? pick(playerNames, 8) : ['?'];
+          acceptedNames.forEach((name) => {
+            if (name !== '?') playerPool.add(name);
+          });
+          cells[`${code},${key}`] = acceptedNames;
         } catch {
-          cells[`${code},${key}`] = '?';
+          cells[`${code},${key}`] = ['?'];
         }
       }
     }
 
     return {
-      payload: { rows: competitionCodes, cols: colTeams.map((t) => t.strTeamShort || t.strTeam.slice(0, 3).toUpperCase()), teamMeta },
+      payload: {
+        rows: competitionCodes,
+        cols: colTeams.map(teamKey),
+        teamMeta,
+        playerPool: [...playerPool].sort(),
+      },
       solution: { cells },
     };
   } catch {
