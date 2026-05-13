@@ -43,4 +43,10 @@
 
 ## Tradeoffs
 
-- _to be filled in by Darius_
+| Decision | Chose | Why |
+|---|---|---|
+| Auth strategy | JWT (access + refresh) over sessions | JWTs are stateless — easier on Render/Vercel where you can't share session state |
+| Duel mode | Hot-seat first, Socket.IO as stretch | Reduces risk — delivers the feature even if real-time isn't ready in time |
+| Hosting split | Vercel (FE) + Render (API + cron) | Both free tiers; Render supports cron workers natively |
+| Monorepo | npm workspaces | Simple, no Turborepo/Nx overhead for a 10-day project |
+| Shared types | Duplicated in client + server | Avoids a shared build step; only ~6 small interfaces |
