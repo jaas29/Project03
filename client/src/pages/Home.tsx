@@ -107,7 +107,7 @@ export default function Home() {
             number="03"
             color="gold"
             title="Soccer Wordle"
-            blurb="Five letters. One footballer."
+            blurb="Guess the footballer's surname."
             status="Next"
             to="/play/wordle"
             icon={<WordleIcon />}

@@ -8,6 +8,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, username: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -28,15 +29,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem(ACCESS_KEY);
-    if (!token) {
+    const access = localStorage.getItem(ACCESS_KEY);
+    const refresh = localStorage.getItem(REFRESH_KEY);
+    if (!access && !refresh) {
       setLoading(false);
       return;
     }
+
     api
       .get<{ user: PublicUser }>('/api/auth/me')
       .then((res) => setUser(res.data.user))
-      .catch(() => {
+      .catch(async () => {
+        // Access token expired — try refreshing before logging out
+        if (refresh) {
+          try {
+            const { data } = await api.post<{ accessToken: string }>(
+              '/api/auth/refresh',
+              { refreshToken: refresh },
+            );
+            localStorage.setItem(ACCESS_KEY, data.accessToken);
+            const res = await api.get<{ user: PublicUser }>('/api/auth/me');
+            setUser(res.data.user);
+            return;
+          } catch {
+            // Refresh token also invalid — fall through to logout
+          }
+        }
         localStorage.removeItem(ACCESS_KEY);
         localStorage.removeItem(REFRESH_KEY);
       })
@@ -61,9 +79,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const res = await api.get<{ user: PublicUser }>('/api/auth/me');
+      setUser(res.data.user);
+    } catch {
+      // ignore — user stays as-is
+    }
+  }, []);
+
   const value = useMemo(
-    () => ({ user, loading, login, register, logout }),
-    [user, loading, login, register, logout]
+    () => ({ user, loading, login, register, logout, refreshUser }),
+    [user, loading, login, register, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

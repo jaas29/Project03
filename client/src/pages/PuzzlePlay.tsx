@@ -3,6 +3,8 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import { api, extractApiError } from '../api/client';
 import { Wordmark } from '../components/Wordmark';
 import { canonicalPlayerName, playerNameSuggestions } from '../lib/playerNames';
+import { loadGame, saveGame } from '../lib/gameStorage';
+import { useAuth } from '../store/auth';
 import type { PuzzleType } from '../types/puzzle';
 
 type RoutePuzzleType = Extract<PuzzleType, 'grid' | 'connections' | 'wordle'>;
@@ -225,14 +227,23 @@ function DuelSubmitPanel({ onSubmit }: { onSubmit: () => void }) {
 
 export function GridGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuzzle; usingDemo: boolean; onDuelComplete?: (d: DuelCompleteData) => void }) {
   const payload = puzzle.payload as GridPayload;
+  const { refreshUser } = useAuth();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [guesses, setGuesses] = useState<Record<string, GridGuess>>({});
+
+  type GridSaved = { guesses: Record<string, GridGuess>; score: number | null; result: SubmitResult | null };
+  const saved = !usingDemo ? loadGame<GridSaved>(puzzle._id) : null;
+
+  const [guesses, setGuesses] = useState<Record<string, GridGuess>>(saved?.guesses ?? {});
   const [entry, setEntry] = useState('');
   const [startedAt] = useState(() => Date.now());
-  const [score, setScore] = useState<number | null>(null);
-  const [result, setResult] = useState<SubmitResult | null>(null);
+  const [score, setScore] = useState<number | null>(saved?.score ?? null);
+  const [result, setResult] = useState<SubmitResult | null>(saved?.result ?? null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!usingDemo) saveGame(puzzle._id, { guesses, score, result });
+  }, [puzzle._id, usingDemo, guesses, score, result]);
 
   const completed = Object.keys(guesses).filter((key) => guesses[key]?.value.trim()).length;
   const attempts = Math.max(1, completed);
@@ -302,6 +313,7 @@ export function GridGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuz
       });
       setScore(data.score);
       setResult(data);
+      refreshUser();
     } catch (err) {
       setSubmitError(extractApiError(err));
     }
@@ -517,13 +529,22 @@ function ScorePanel({
 
 export function ConnectionsGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuzzle; usingDemo: boolean; onDuelComplete?: (d: DuelCompleteData) => void }) {
   const payload = puzzle.payload as ConnectionsPayload;
+  const { refreshUser } = useAuth();
+
+  type ConnSaved = { solvedGroups: string[][]; mistakes: number; score: number | null; result: SubmitResult | null };
+  const saved = !usingDemo ? loadGame<ConnSaved>(puzzle._id) : null;
+
   const [selected, setSelected] = useState<string[]>([]);
-  const [solvedGroups, setSolvedGroups] = useState<string[][]>([]);
-  const [mistakes, setMistakes] = useState(0);
+  const [solvedGroups, setSolvedGroups] = useState<string[][]>(saved?.solvedGroups ?? []);
+  const [mistakes, setMistakes] = useState(saved?.mistakes ?? 0);
   const [startedAt] = useState(() => Date.now());
-  const [score, setScore] = useState<number | null>(null);
-  const [result, setResult] = useState<SubmitResult | null>(null);
+  const [score, setScore] = useState<number | null>(saved?.score ?? null);
+  const [result, setResult] = useState<SubmitResult | null>(saved?.result ?? null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!usingDemo) saveGame(puzzle._id, { solvedGroups, mistakes, score, result });
+  }, [puzzle._id, usingDemo, solvedGroups, mistakes, score, result]);
 
   const remainingItems = payload.items.filter((item) => !solvedGroups.flat().includes(item)).slice(0, 16);
   const solved = solvedGroups.length >= 4;
@@ -570,6 +591,7 @@ export function ConnectionsGame({ puzzle, usingDemo, onDuelComplete }: { puzzle:
       });
       setScore(data.score);
       setResult(data);
+      refreshUser();
     } catch (err) {
       setSubmitError(extractApiError(err));
     }
@@ -672,13 +694,22 @@ export function ConnectionsGame({ puzzle, usingDemo, onDuelComplete }: { puzzle:
 
 export function WordleGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuzzle; usingDemo: boolean; onDuelComplete?: (d: DuelCompleteData) => void }) {
   const payload = puzzle.payload as WordlePayload;
-  const [guesses, setGuesses] = useState<string[]>([]);
-  const [checkedRows, setCheckedRows] = useState<{ guess: string; statuses: LetterStatus[] }[]>([]);
+  const { refreshUser } = useAuth();
+
+  type WordleSaved = { guesses: string[]; checkedRows: { guess: string; statuses: LetterStatus[] }[]; score: number | null; result: SubmitResult | null };
+  const saved = !usingDemo ? loadGame<WordleSaved>(puzzle._id) : null;
+
+  const [guesses, setGuesses] = useState<string[]>(saved?.guesses ?? []);
+  const [checkedRows, setCheckedRows] = useState<{ guess: string; statuses: LetterStatus[] }[]>(saved?.checkedRows ?? []);
   const [entry, setEntry] = useState('');
   const [startedAt] = useState(() => Date.now());
-  const [score, setScore] = useState<number | null>(null);
-  const [result, setResult] = useState<SubmitResult | null>(null);
+  const [score, setScore] = useState<number | null>(saved?.score ?? null);
+  const [result, setResult] = useState<SubmitResult | null>(saved?.result ?? null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!usingDemo) saveGame(puzzle._id, { guesses, checkedRows, score, result });
+  }, [puzzle._id, usingDemo, guesses, checkedRows, score, result]);
 
   const length = payload.length;
   const maxAttempts = payload.maxAttempts;
@@ -733,6 +764,7 @@ export function WordleGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiP
       });
       setScore(data.score);
       setResult(data);
+      refreshUser();
     } catch (err) {
       setSubmitError(extractApiError(err));
     }

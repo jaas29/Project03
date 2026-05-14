@@ -30,3 +30,16 @@ export const requireAdmin: RequestHandler = (req, res, next) => {
   }
   next();
 };
+
+// Attaches req.user if a valid token is present, but never rejects the request.
+export const optionalAuth: RequestHandler = (req, _res, next) => {
+  const header = req.header('authorization');
+  if (header?.startsWith('Bearer ')) {
+    try {
+      req.user = verifyAccessToken(header.slice('Bearer '.length).trim());
+    } catch {
+      // invalid / expired token — continue as anonymous
+    }
+  }
+  next();
+};
