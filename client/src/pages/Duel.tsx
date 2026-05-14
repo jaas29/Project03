@@ -4,6 +4,7 @@ import { useAuth } from '../store/auth';
 import { api, extractApiError } from '../api/client';
 import { connectSocket, disconnectSocket, getSocket } from '../socket/socket';
 import { Wordmark } from '../components/Wordmark';
+import { GridGame, ConnectionsGame, WordleGame, type ApiPuzzle, type DuelCompleteData } from './PuzzlePlay';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -16,7 +17,7 @@ interface MatchPlayer {
 interface DuelMatchData {
   _id: string;
   players: [MatchPlayer, MatchPlayer];
-  puzzleId: { _id: string; type: string; date: string };
+  puzzleId: ApiPuzzle;
   scores: [number | null, number | null];
   winner: string | null;
   status: 'pending' | 'active' | 'finished';
@@ -67,8 +68,6 @@ export default function Duel() {
 
   // Play state
   const [elapsed, setElapsed] = useState(0);
-  const [attempts, setAttempts] = useState(1);
-  const [solved, setSolved] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [myScore, setMyScore] = useState<number | null>(null);
@@ -222,13 +221,15 @@ export default function Duel() {
     getSocket().emit('duel:queue:leave');
   }
 
-  async function handleHotseatSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!match || !startTimeRef.current) return;
+  async function handleDuelComplete({ attempts, durationMs, solved }: DuelCompleteData) {
+    if (!match) return;
     stopTimer();
     setSubmitError(null);
+    if (phase === 'online-playing') {
+      getSocket().emit('duel:score:submit', { matchId: match._id, attempts, durationMs, solved });
+      return;
+    }
     setSubmitting(true);
-    const durationMs = Date.now() - startTimeRef.current;
     try {
       const { data } = await api.post<{ score: number; bothDone: boolean; match?: DuelMatchData }>(
         `/api/duels/${match._id}/submit`,
@@ -244,26 +245,9 @@ export default function Duel() {
     }
   }
 
-  function handleOnlineSubmit() {
-    if (!match || !startTimeRef.current) return;
-    stopTimer();
-    const durationMs = Date.now() - startTimeRef.current;
-    const score = getOptimisticScore();
-    setMyScore(score);
-    getSocket().emit('duel:score:submit', { matchId: match._id, attempts, durationMs, solved });
-  }
-
   function handleForfeit() {
     if (!match) return;
     getSocket().emit('duel:forfeit', { matchId: match._id });
-  }
-
-  function getOptimisticScore() {
-    // rough estimate shown immediately; server computes the real one
-    if (!solved) return 0;
-    const seconds = elapsed;
-    const base = 1000 - (attempts - 1) * 100;
-    return Math.max(0, base - Math.max(0, seconds - 30));
   }
 
   const matchUrl = inviteToken
@@ -324,15 +308,10 @@ export default function Duel() {
             match={match}
             playerIndex={playerIndex!}
             elapsed={elapsed}
-            attempts={attempts}
-            setAttempts={setAttempts}
-            solved={solved}
-            setSolved={setSolved}
             myScore={myScore}
             opponentScore={opponentScore}
             isOnline={phase === 'online-playing'}
-            onHotseatSubmit={handleHotseatSubmit}
-            onOnlineSubmit={handleOnlineSubmit}
+            onDuelComplete={handleDuelComplete}
             onForfeit={handleForfeit}
             submitting={submitting}
             error={submitError}
@@ -630,15 +609,10 @@ function LivePhase({
   match,
   playerIndex,
   elapsed,
-  attempts,
-  setAttempts,
-  solved,
-  setSolved,
   myScore,
   opponentScore,
   isOnline,
-  onHotseatSubmit,
-  onOnlineSubmit,
+  onDuelComplete,
   onForfeit,
   submitting,
   error,
@@ -646,15 +620,10 @@ function LivePhase({
   match: DuelMatchData;
   playerIndex: 0 | 1;
   elapsed: number;
-  attempts: number;
-  setAttempts: (v: number) => void;
-  solved: boolean;
-  setSolved: (v: boolean) => void;
   myScore: number | null;
   opponentScore: number | null;
   isOnline: boolean;
-  onHotseatSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
-  onOnlineSubmit: () => void;
+  onDuelComplete: (d: DuelCompleteData) => void;
   onForfeit: () => void;
   submitting: boolean;
   error: string | null;
@@ -663,8 +632,11 @@ function LivePhase({
   const opponent = match.players[playerIndex === 0 ? 1 : 0];
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const ss = String(elapsed % 60).padStart(2, '0');
-  const puzzleLabel = match.puzzleId.type.charAt(0).toUpperCase() + match.puzzleId.type.slice(1);
+  const puzzleType = match.puzzleId.type as 'grid' | 'connections' | 'wordle';
+  const puzzleLabel = puzzleType.charAt(0).toUpperCase() + puzzleType.slice(1);
   const submitted = myScore !== null;
+
+  void submitting;
 
   return (
     <div>
@@ -676,9 +648,7 @@ function LivePhase({
           </div>
           <div>
             <p className="font-display text-lg text-cream-50">{me.username}</p>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-cream-50/60">
-              ELO {me.elo}
-            </p>
+            <p className="font-mono text-[10px] uppercase tracking-widest text-cream-50/60">ELO {me.elo}</p>
           </div>
           {myScore !== null && (
             <span className="ml-auto font-display text-3xl text-cream-50">{myScore}</span>
@@ -689,12 +659,8 @@ function LivePhase({
           <p className="font-mono text-[10px] uppercase tracking-widest text-cream-50/50">
             {isOnline ? 'Live' : 'Hot-seat'}
           </p>
-          <p className="font-display text-2xl tabular-nums text-cream-50">
-            {mm}:{ss}
-          </p>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-cream-50/50">
-            {puzzleLabel}
-          </p>
+          <p className="font-display text-2xl tabular-nums text-cream-50">{mm}:{ss}</p>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-cream-50/50">{puzzleLabel}</p>
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-3 bg-flame px-5 py-4">
@@ -703,9 +669,7 @@ function LivePhase({
           )}
           <div className="text-right">
             <p className="font-display text-lg text-cream-50">{opponent.username}</p>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-cream-50/60">
-              ELO {opponent.elo}
-            </p>
+            <p className="font-mono text-[10px] uppercase tracking-widest text-cream-50/60">ELO {opponent.elo}</p>
           </div>
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border-2 border-cream-50/30 bg-flame/80 font-display text-sm text-cream-50">
             {opponent.username.slice(0, 2).toUpperCase()}
@@ -713,44 +677,16 @@ function LivePhase({
         </div>
       </div>
 
+      {error && (
+        <div className="mt-4 rounded-xl border border-flame/30 bg-flame/5 px-4 py-3 text-sm text-flame">
+          {error}
+        </div>
+      )}
+
       {/* Game area */}
-      <div className="mt-6 flex min-h-52 items-center justify-center rounded-2xl border-2 border-dashed border-ink/20 bg-cream-100">
-        <div className="text-center">
-          <p className="font-mono text-[11px] uppercase tracking-widest text-ink-soft">
-            {puzzleLabel} puzzle
-          </p>
-          <p className="mt-1 text-sm text-ink-soft/50">Game component loads here</p>
-        </div>
-      </div>
-
-      {/* Power-ups (UI only) */}
-      <div className="mt-6">
-        <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
-          Power-ups
-        </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {POWER_UPS.map((pu) => (
-            <button
-              key={pu.label}
-              type="button"
-              disabled
-              title="Power-ups coming soon"
-              className="flex flex-col items-center rounded-xl border-2 border-ink/10 bg-cream-100 px-3 py-3 font-mono text-[11px] uppercase tracking-widest text-ink-soft opacity-50 cursor-not-allowed"
-            >
-              <span className="text-lg">{pu.icon}</span>
-              <span className="mt-1">{pu.label}</span>
-              <span className="text-ink/40">{pu.cost}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Submit / result area */}
       {submitted ? (
         <div className="mt-6 rounded-2xl border-2 border-gold bg-gold/10 px-6 py-4">
-          <p className="font-mono text-[11px] uppercase tracking-widest text-gold-dark">
-            Score submitted
-          </p>
+          <p className="font-mono text-[11px] uppercase tracking-widest text-gold-dark">Score submitted</p>
           <p className="mt-1 font-display text-4xl text-ink">{myScore}</p>
           {isOnline && (
             <p className="mt-2 font-mono text-[11px] uppercase tracking-widest text-ink-soft">
@@ -758,118 +694,31 @@ function LivePhase({
             </p>
           )}
         </div>
-      ) : isOnline ? (
-        <div className="mt-6 space-y-4">
-          {error && (
-            <div className="rounded-xl border border-flame/30 bg-flame/5 px-4 py-3 text-sm text-flame">
-              {error}
-            </div>
-          )}
-          <AttemptsSolvedRow
-            attempts={attempts}
-            setAttempts={setAttempts}
-            solved={solved}
-            setSolved={setSolved}
-          />
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onOnlineSubmit}
-              className="flex-1 rounded-full bg-ink py-4 font-display text-sm uppercase tracking-widest text-cream-50 transition-transform hover:-translate-y-0.5"
-            >
-              Submit Score →
-            </button>
-            <button
-              type="button"
-              onClick={onForfeit}
-              className="rounded-full border-2 border-flame px-5 py-4 font-display text-sm uppercase tracking-widest text-flame transition-transform hover:-translate-y-0.5"
-            >
-              Forfeit
-            </button>
-          </div>
-        </div>
       ) : (
-        <form onSubmit={onHotseatSubmit} className="mt-6 space-y-4">
-          {error && (
-            <div className="rounded-xl border border-flame/30 bg-flame/5 px-4 py-3 text-sm text-flame">
-              {error}
-            </div>
+        <div className="mt-6">
+          {puzzleType === 'grid' && (
+            <GridGame puzzle={match.puzzleId} usingDemo={false} onDuelComplete={onDuelComplete} />
           )}
-          <AttemptsSolvedRow
-            attempts={attempts}
-            setAttempts={setAttempts}
-            solved={solved}
-            setSolved={setSolved}
-          />
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-full bg-ink py-4 font-display text-sm uppercase tracking-widest text-cream-50 transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? 'Submitting…' : 'Submit Score →'}
-          </button>
-        </form>
+          {puzzleType === 'connections' && (
+            <ConnectionsGame puzzle={match.puzzleId} usingDemo={false} onDuelComplete={onDuelComplete} />
+          )}
+          {puzzleType === 'wordle' && (
+            <WordleGame puzzle={match.puzzleId} usingDemo={false} onDuelComplete={onDuelComplete} />
+          )}
+        </div>
       )}
-    </div>
-  );
-}
 
-const POWER_UPS = [
-  { icon: '◎', label: 'Reveal', cost: '−300 pts' },
-  { icon: '✦', label: 'Foil', cost: '−400 pts' },
-  { icon: '❄', label: 'Freeze', cost: '−400 pts' },
-  { icon: '↺', label: 'Skip', cost: '−200 pts' },
-];
-
-function AttemptsSolvedRow({
-  attempts, setAttempts, solved, setSolved,
-}: {
-  attempts: number;
-  setAttempts: (v: number) => void;
-  solved: boolean;
-  setSolved: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-end gap-8">
-      <div className="space-y-1.5">
-        <label className="block font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
-          Attempts
-        </label>
-        <div className="flex items-center gap-3">
+      {isOnline && !submitted && (
+        <div className="mt-4 flex justify-end">
           <button
             type="button"
-            onClick={() => setAttempts(Math.max(1, attempts - 1))}
-            className="grid h-10 w-10 place-items-center rounded-full border-2 border-ink font-display text-lg text-ink hover:bg-ink hover:text-cream-50"
-          >−</button>
-          <span className="w-8 text-center font-display text-3xl text-ink">{attempts}</span>
-          <button
-            type="button"
-            onClick={() => setAttempts(attempts + 1)}
-            className="grid h-10 w-10 place-items-center rounded-full border-2 border-ink font-display text-lg text-ink hover:bg-ink hover:text-cream-50"
-          >+</button>
+            onClick={onForfeit}
+            className="rounded-full border-2 border-flame px-5 py-3 font-display text-sm uppercase tracking-widest text-flame transition-transform hover:-translate-y-0.5"
+          >
+            Forfeit
+          </button>
         </div>
-      </div>
-      <div className="space-y-1.5">
-        <label className="block font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
-          Result
-        </label>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setSolved(true)}
-            className={`rounded-full border-2 px-4 py-2 font-mono text-[11px] uppercase tracking-widest transition-colors ${
-              solved ? 'border-pitch-jersey bg-pitch-jersey text-cream-50' : 'border-ink/20 text-ink-soft hover:border-ink hover:text-ink'
-            }`}
-          >Solved</button>
-          <button
-            type="button"
-            onClick={() => setSolved(false)}
-            className={`rounded-full border-2 px-4 py-2 font-mono text-[11px] uppercase tracking-widest transition-colors ${
-              !solved ? 'border-flame bg-flame text-cream-50' : 'border-ink/20 text-ink-soft hover:border-ink hover:text-ink'
-            }`}
-          >Failed</button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import type { PuzzleType } from '../types/puzzle';
 
 type RoutePuzzleType = Extract<PuzzleType, 'grid' | 'connections' | 'wordle'>;
 
-interface ApiPuzzle {
+export interface ApiPuzzle {
   _id: string;
   date: string;
   type: PuzzleType;
@@ -201,7 +201,29 @@ export default function PuzzlePlay() {
   );
 }
 
-function GridGame({ puzzle, usingDemo }: { puzzle: ApiPuzzle; usingDemo: boolean }) {
+export type DuelCompleteData = { attempts: number; durationMs: number; solved: boolean };
+
+function DuelSubmitPanel({ onSubmit }: { onSubmit: () => void }) {
+  const [submitted, setSubmitted] = useState(false);
+  return (
+    <div className="rounded-2xl border-4 border-ink bg-cream-50 p-5 shadow-card-lift">
+      <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-ink">Duel</p>
+      {submitted ? (
+        <p className="mt-5 font-mono text-[11px] uppercase tracking-widest text-ink-soft">Score submitted…</p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => { setSubmitted(true); onSubmit(); }}
+          className="mt-5 w-full rounded-full bg-ink py-4 font-display text-sm uppercase tracking-widest text-cream-50 transition-transform hover:-translate-y-0.5"
+        >
+          Submit to Duel →
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function GridGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuzzle; usingDemo: boolean; onDuelComplete?: (d: DuelCompleteData) => void }) {
   const payload = puzzle.payload as GridPayload;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [guesses, setGuesses] = useState<Record<string, GridGuess>>({});
@@ -328,7 +350,11 @@ function GridGame({ puzzle, usingDemo }: { puzzle: ApiPuzzle; usingDemo: boolean
       </section>
 
       <aside className="space-y-4">
-        <ScorePanel completed={completed} total={9} score={score} error={submitError} onSubmit={submitScore} />
+        {onDuelComplete ? (
+          <DuelSubmitPanel onSubmit={() => onDuelComplete({ attempts: Math.max(1, completed), durationMs: Date.now() - startedAt, solved: completed >= 9 })} />
+        ) : (
+          <ScorePanel completed={completed} total={9} score={score} error={submitError} onSubmit={submitScore} />
+        )}
         <div className="rounded-2xl border-4 border-ink bg-cream-100 p-5 shadow-card-lift">
           <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-ink">Hints</p>
           <p className="mt-3 text-sm leading-6 text-ink-soft">
@@ -489,7 +515,7 @@ function ScorePanel({
   );
 }
 
-function ConnectionsGame({ puzzle, usingDemo }: { puzzle: ApiPuzzle; usingDemo: boolean }) {
+export function ConnectionsGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuzzle; usingDemo: boolean; onDuelComplete?: (d: DuelCompleteData) => void }) {
   const payload = puzzle.payload as ConnectionsPayload;
   const [selected, setSelected] = useState<string[]>([]);
   const [solvedGroups, setSolvedGroups] = useState<string[][]>([]);
@@ -625,7 +651,11 @@ function ConnectionsGame({ puzzle, usingDemo }: { puzzle: ApiPuzzle; usingDemo: 
       </section>
 
       <aside className="space-y-4">
-        <ScorePanel completed={solvedGroups.length} total={4} score={score} error={submitError} onSubmit={submitScore} />
+        {onDuelComplete ? (
+          <DuelSubmitPanel onSubmit={() => onDuelComplete({ attempts: Math.max(1, solvedGroups.length + mistakes), durationMs: Date.now() - startedAt, solved })} />
+        ) : (
+          <ScorePanel completed={solvedGroups.length} total={4} score={score} error={submitError} onSubmit={submitScore} />
+        )}
         <div className="rounded-2xl border-4 border-ink bg-cream-100 p-5 shadow-card-lift">
           <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-ink">Mistakes</p>
           <div className="mt-3 flex gap-2">
@@ -640,7 +670,7 @@ function ConnectionsGame({ puzzle, usingDemo }: { puzzle: ApiPuzzle; usingDemo: 
   );
 }
 
-function WordleGame({ puzzle, usingDemo }: { puzzle: ApiPuzzle; usingDemo: boolean }) {
+export function WordleGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuzzle; usingDemo: boolean; onDuelComplete?: (d: DuelCompleteData) => void }) {
   const payload = puzzle.payload as WordlePayload;
   const [guesses, setGuesses] = useState<string[]>([]);
   const [checkedRows, setCheckedRows] = useState<{ guess: string; statuses: LetterStatus[] }[]>([]);
@@ -775,7 +805,11 @@ function WordleGame({ puzzle, usingDemo }: { puzzle: ApiPuzzle; usingDemo: boole
       </section>
 
       <aside className="space-y-4">
-        <ScorePanel completed={guesses.length} total={maxAttempts} score={score} error={submitError} onSubmit={submitScore} />
+        {onDuelComplete ? (
+          <DuelSubmitPanel onSubmit={() => onDuelComplete({ attempts: Math.max(1, guesses.length), durationMs: Date.now() - startedAt, solved })} />
+        ) : (
+          <ScorePanel completed={guesses.length} total={maxAttempts} score={score} error={submitError} onSubmit={submitScore} />
+        )}
         <div className="rounded-2xl border-4 border-ink bg-cream-100 p-5 shadow-card-lift">
           <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-ink">Status</p>
           <p className="mt-3 text-sm leading-6 text-ink-soft">
