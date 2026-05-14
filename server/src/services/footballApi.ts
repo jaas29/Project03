@@ -30,6 +30,14 @@ const LEAGUE_NAMES: Record<string, string> = {
   FL1: 'French Ligue 1',
 };
 
+export const LEAGUE_DISPLAY_NAMES: Record<string, string> = {
+  PL:  'Premier League',
+  PD:  'La Liga',
+  BL1: 'Bundesliga',
+  SA:  'Serie A',
+  FL1: 'Ligue 1',
+};
+
 export type LeagueCode = keyof typeof LEAGUE_NAMES;
 export const SUPPORTED_COMPETITIONS = Object.keys(LEAGUE_NAMES) as LeagueCode[];
 

@@ -7,13 +7,32 @@ function todayUTC(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+const LEAGUE_CODES = new Set(['PL', 'PD', 'BL1', 'SA', 'FL1']);
+
 async function generateAndSave(
   type: PuzzleType,
   date: string,
   generator: () => Promise<{ payload: unknown; solution: unknown }>,
 ): Promise<void> {
   const existing = await Puzzle.findOne({ date, type });
-  if (existing) return;
+
+  if (existing) {
+    // Detect old-format grid puzzles where rows were league codes instead of nationalities.
+    // Delete and regenerate so players always see the correct nationality-based grid.
+    if (type === 'grid') {
+      const payload = existing.payload as { rows?: unknown } | null;
+      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+      const isOldFormat = rows.some((r) => typeof r === 'string' && LEAGUE_CODES.has(r));
+      if (isOldFormat) {
+        await existing.deleteOne();
+        console.log(`[cron] deleted stale grid puzzle for ${date}, regenerating…`);
+      } else {
+        return;
+      }
+    } else {
+      return;
+    }
+  }
 
   let result: { payload: unknown; solution: unknown };
   try {

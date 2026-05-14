@@ -4,10 +4,13 @@ import { createApp } from './app';
 import { connectDb } from './config/db';
 import { env } from './config/env';
 import { scheduleDailyPuzzleJob, runDailyPuzzleJob } from './jobs/dailyPuzzleJob';
+import { seedHigherLowerPlayers } from './jobs/seedHigherLower';
 import { registerDuelSocket } from './sockets/duelSocket';
 
 async function main() {
   await connectDb();
+
+  await seedHigherLowerPlayers().catch((err) => console.error('[startup] HigherLower seed failed:', err));
 
   // Seed today's puzzles if missing, then schedule nightly generation
   await runDailyPuzzleJob().catch((err) => console.error('[startup] puzzle seed failed:', err));

@@ -1,4 +1,6 @@
-import { getLeagueTeams, getTeamSquad, SUPPORTED_COMPETITIONS, LeagueCode } from './footballApi';
+import mongoose from 'mongoose';
+import { getLeagueTeams, getTeamSquad, SUPPORTED_COMPETITIONS, LEAGUE_DISPLAY_NAMES, LeagueCode } from './footballApi';
+import { HigherLowerPlayer } from '../models/HigherLowerPlayer';
 
 // ─── Shared helpers ────────────────────────────────────────────────────────
 
@@ -17,7 +19,8 @@ function pickOne<T>(arr: T[]): T {
 
 function teamKey(team: { strTeamShort?: string; strTeam: string }): string {
   const short = team.strTeamShort?.trim();
-  if (short) return short.toUpperCase();
+  // Reject single-letter shorts \u2014 TheSportsDB returns "F" for Fiorentina, Frosinone, etc.
+  if (short && short.length >= 2) return short.slice(0, 4).toUpperCase();
 
   const words = team.strTeam
     .normalize('NFD')
@@ -25,8 +28,11 @@ function teamKey(team: { strTeamShort?: string; strTeam: string }): string {
     .replace(/[^a-zA-Z0-9 ]/g, '')
     .split(/\s+/)
     .filter(Boolean);
-  const initials = words.map((word) => word[0]).join('').slice(0, 4).toUpperCase();
-  return initials || team.strTeam.slice(0, 3).toUpperCase();
+
+  if (words.length >= 2) {
+    return words.map((w) => w[0]).join('').slice(0, 4).toUpperCase();
+  }
+  return (words[0] ?? team.strTeam).slice(0, 3).toUpperCase();
 }
 
 // ─── Football Grid ──────────────────────────────────────────────────────────
@@ -50,89 +56,119 @@ export interface GridSolution {
   cells: Record<string, string | string[]>; // key = "row,col", value = accepted player names
 }
 
-// Static fallback used when football-data.org API is unavailable
+// Static fallback: rows = nationalities, cols = teams
+// Each cell = players of that nationality who played for that team (all-time)
 const GRID_FALLBACK: { payload: GridPayload; solution: GridSolution } = {
   payload: {
-    rows: ['PL', 'PD', 'BL1'],
-    cols: ['MCI', 'FCB', 'FCBM'],
+    rows: ['Brazil', 'France', 'Germany'],
+    cols: ['RMA', 'ARS', 'BAY'],
     teamMeta: {
-      MCI:  { name: 'Manchester City',   crest: '' },
-      FCB:  { name: 'FC Barcelona',      crest: '' },
-      FCBM: { name: 'FC Bayern München', crest: '' },
+      RMA: { name: 'Real Madrid',   crest: '' },
+      ARS: { name: 'Arsenal',       crest: '' },
+      BAY: { name: 'Bayern Munich', crest: '' },
     },
     playerPool: [
-      'Kevin De Bruyne', 'Raheem Sterling', 'Phil Foden',
-      'Thierry Henry', 'Cesc Fabregas', 'Ilkay Gundogan',
-      'Harry Kane', 'Sadio Mane', 'Leroy Sane',
-      'Rodri', 'David Silva', 'Pedri', 'Gavi',
-      'Robert Lewandowski', 'Xabi Alonso', 'Thiago Alcantara',
-      'Erling Haaland', 'Thomas Muller', 'Jamal Musiala',
+      'Roberto Carlos', 'Ronaldo', 'Marcelo', 'Casemiro', 'Rodrygo', 'Vinicius Junior', 'Eder Militao',
+      'Edu', 'Gilberto Silva', 'Gabriel Martinelli', 'Gabriel Magalhaes',
+      'Ze Roberto', 'Giovanni Elber', 'Lucio',
+      'Zinedine Zidane', 'Karim Benzema', 'Raphael Varane', 'Ferland Mendy', 'Eduardo Camavinga',
+      'William Saliba', 'Thierry Henry', 'Robert Pires', 'Patrick Vieira', 'Nicolas Anelka',
+      'Franck Ribery', 'Kingsley Coman', 'Dayot Upamecano', 'Lucas Hernandez',
+      'Toni Kroos', 'Sami Khedira', 'Christoph Metzelder',
+      'Lukas Podolski', 'Per Mertesacker', 'Kai Havertz',
+      'Thomas Muller', 'Joshua Kimmich', 'Manuel Neuer', 'Jamal Musiala', 'Leroy Sane', 'Serge Gnabry',
     ],
   },
   solution: {
     cells: {
-      'PL,MCI':  ['Kevin De Bruyne', 'Raheem Sterling', 'Phil Foden'],
-      'PL,FCB':  ['Thierry Henry', 'Cesc Fabregas', 'Ilkay Gundogan'],
-      'PL,FCBM': ['Harry Kane', 'Sadio Mane', 'Leroy Sane'],
-      'PD,MCI':  ['Rodri', 'David Silva', 'Ilkay Gundogan'],
-      'PD,FCB':  ['Pedri', 'Gavi', 'Robert Lewandowski'],
-      'PD,FCBM': ['Robert Lewandowski', 'Xabi Alonso', 'Thiago Alcantara'],
-      'BL1,MCI': ['Ilkay Gundogan', 'Erling Haaland', 'Kevin De Bruyne'],
-      'BL1,FCB': ['Robert Lewandowski', 'Ilkay Gundogan', 'Thierry Henry'],
-      'BL1,FCBM': ['Thomas Muller', 'Harry Kane', 'Jamal Musiala'],
+      'Brazil,RMA': ['Roberto Carlos', 'Ronaldo', 'Marcelo', 'Casemiro', 'Rodrygo', 'Vinicius Junior', 'Eder Militao'],
+      'Brazil,ARS': ['Edu', 'Gilberto Silva', 'Gabriel Martinelli', 'Gabriel Magalhaes'],
+      'Brazil,BAY': ['Ze Roberto', 'Giovanni Elber', 'Lucio'],
+      'France,RMA': ['Zinedine Zidane', 'Karim Benzema', 'Raphael Varane', 'Ferland Mendy', 'Eduardo Camavinga'],
+      'France,ARS': ['William Saliba', 'Thierry Henry', 'Robert Pires', 'Patrick Vieira', 'Nicolas Anelka'],
+      'France,BAY': ['Franck Ribery', 'Kingsley Coman', 'Dayot Upamecano', 'Lucas Hernandez'],
+      'Germany,RMA': ['Toni Kroos', 'Sami Khedira', 'Christoph Metzelder'],
+      'Germany,ARS': ['Lukas Podolski', 'Per Mertesacker', 'Kai Havertz'],
+      'Germany,BAY': ['Thomas Muller', 'Joshua Kimmich', 'Manuel Neuer', 'Jamal Musiala', 'Leroy Sane', 'Serge Gnabry'],
     },
   },
 };
 
 export async function generateGrid(): Promise<{ payload: GridPayload; solution: GridSolution }> {
   try {
+    // Pick one team from each of 3 random leagues as column headers
     const competitionCodes = pick([...SUPPORTED_COMPETITIONS], 3) as LeagueCode[];
-
-    const teamsByComp: Record<string, Awaited<ReturnType<typeof getLeagueTeams>>> = {};
+    const colTeams: Awaited<ReturnType<typeof getLeagueTeams>> = [];
     for (const code of competitionCodes) {
-      teamsByComp[code] = await getLeagueTeams(code);
+      const teams = await getLeagueTeams(code);
+      if (teams.length > 0) colTeams.push(pickOne(teams));
+    }
+    if (colTeams.length < 3) throw new Error('Not enough teams');
+
+    // Fetch current squad for each column team
+    const squads = new Map<string, Awaited<ReturnType<typeof getTeamSquad>>>();
+    for (const team of colTeams) {
+      squads.set(team.idTeam, await getTeamSquad(team.idTeam));
     }
 
-    const allTeams = Object.values(teamsByComp).flat();
-    const uniqueTeams = [...new Map(allTeams.map((t) => [t.idTeam, t])).values()];
-    const colTeams = pick(uniqueTeams, 3);
+    // Find nationalities that appear in at least 2 of the 3 squads
+    const natCounts = new Map<string, number>();
+    for (const squad of squads.values()) {
+      const seen = new Set(squad.map((p) => p.strNationality).filter((n) => n && n.length > 1));
+      for (const nat of seen) natCounts.set(nat, (natCounts.get(nat) ?? 0) + 1);
+    }
+    const candidates = [...natCounts.entries()]
+      .filter(([, count]) => count >= 2)
+      .map(([nat]) => nat);
+    if (candidates.length < 3) throw new Error('Not enough shared nationalities');
+    const rowNats = pick(candidates, 3);
+
+    // Build unique column keys
+    const usedKeys = new Set<string>();
+    const colKeys: string[] = colTeams.map((t) => {
+      let key = teamKey(t);
+      if (usedKeys.has(key)) {
+        const base = t.strTeam.replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase();
+        let suffix = 2;
+        key = base;
+        while (usedKeys.has(key)) key = base.slice(0, 2) + suffix++;
+      }
+      usedKeys.add(key);
+      return key;
+    });
 
     const teamMeta: GridPayload['teamMeta'] = {};
-    for (const t of colTeams) {
-      const key = teamKey(t);
-      teamMeta[key] = { name: t.strTeam, crest: t.strBadge };
-    }
+    colTeams.forEach((t, i) => {
+      teamMeta[colKeys[i]] = { name: t.strTeam, crest: t.strBadge };
+    });
 
+    // Build cells: key = "nationality,teamKey", value = matching player names
     const cells: GridSolution['cells'] = {};
     const playerPool = new Set<string>();
-    for (const code of competitionCodes) {
-      for (const team of colTeams) {
-        const key = teamKey(team);
-        try {
-          const players = await getTeamSquad(team.idTeam);
-          const playerNames = players.map((player) => player.strPlayer).filter(Boolean);
-          const acceptedNames = playerNames.length ? pick(playerNames, 8) : ['?'];
-          acceptedNames.forEach((name) => {
-            if (name !== '?') playerPool.add(name);
-          });
-          cells[`${code},${key}`] = acceptedNames;
-        } catch {
-          cells[`${code},${key}`] = ['?'];
-        }
+    for (const nat of rowNats) {
+      for (let i = 0; i < colTeams.length; i++) {
+        const team = colTeams[i];
+        const key = colKeys[i];
+        const squad = squads.get(team.idTeam) ?? [];
+        const matching = squad
+          .filter((p) => p.strNationality === nat)
+          .map((p) => p.strPlayer)
+          .filter(Boolean);
+        matching.forEach((name) => playerPool.add(name));
+        cells[`${nat},${key}`] = matching.length > 0 ? matching : ['?'];
       }
     }
 
     return {
       payload: {
-        rows: competitionCodes,
-        cols: colTeams.map(teamKey),
+        rows: rowNats,
+        cols: colKeys,
         teamMeta,
         playerPool: [...playerPool].sort(),
       },
       solution: { cells },
     };
   } catch {
-    // API unavailable — serve static fallback so Grid always generates
     return GRID_FALLBACK;
   }
 }
@@ -174,14 +210,59 @@ const ALL_CONNECTIONS_GROUPS: ConnectionsGroup[] = [
   { category: 'FIFA World Cup hosts 2000s+', color: 'purple', items: ['South Korea/Japan', 'Germany', 'South Africa', 'Brazil'] },
 ];
 
-export async function generateConnections(): Promise<{ payload: ConnectionsPayload; solution: ConnectionsSolution }> {
-  const groups = pick(ALL_CONNECTIONS_GROUPS, 4) as ConnectionsGroup[];
-  const items = pick(groups.flatMap((g) => g.items), 16);
+function playerLastName(fullName: string): string {
+  return fullName.trim().split(/\s+/).pop() ?? fullName;
+}
 
-  return {
-    payload: { items },
-    solution: { groups },
-  };
+async function buildConnectionsFromApi(): Promise<ConnectionsGroup[]> {
+  const colors: ConnectionsGroup['color'][] = ['yellow', 'green', 'blue', 'purple'];
+  const codes = pick([...SUPPORTED_COMPETITIONS], 4) as LeagueCode[];
+  const groups: ConnectionsGroup[] = [];
+
+  // First 2 groups: 4 teams from a league each
+  for (let i = 0; i < 2; i++) {
+    const teams = await getLeagueTeams(codes[i]);
+    if (teams.length < 4) throw new Error('Not enough teams');
+    const picked = pick(teams, 4);
+    groups.push({
+      category: `${LEAGUE_DISPLAY_NAMES[codes[i]]} clubs`,
+      color: colors[i],
+      items: picked.map((t) => t.strTeam),
+    });
+  }
+
+  // Last 2 groups: 4 player surnames from a single club each
+  for (let i = 2; i < 4; i++) {
+    const teams = await getLeagueTeams(codes[i]);
+    const team = pickOne(teams);
+    const squad = await getTeamSquad(team.idTeam);
+    const surnames = [...new Set(
+      squad
+        .map((p) => playerLastName(p.strPlayer))
+        .filter((n) => n.length >= 4 && /^[A-Za-zÀ-ÿ\-']+$/.test(n))
+    )];
+    if (surnames.length < 4) throw new Error('Not enough players');
+    groups.push({
+      category: `${team.strTeam} players`,
+      color: colors[i],
+      items: pick(surnames, 4),
+    });
+  }
+
+  return groups;
+}
+
+export async function generateConnections(): Promise<{ payload: ConnectionsPayload; solution: ConnectionsSolution }> {
+  try {
+    const groups = await buildConnectionsFromApi();
+    const items = pick(groups.flatMap((g) => g.items), 16);
+    return { payload: { items }, solution: { groups } };
+  } catch {
+    // Fall back to static pool when API is unavailable
+    const groups = pick(ALL_CONNECTIONS_GROUPS, 4) as ConnectionsGroup[];
+    const items = pick(groups.flatMap((g) => g.items), 16);
+    return { payload: { items }, solution: { groups } };
+  }
 }
 
 // ─── Wordle ─────────────────────────────────────────────────────────────────
@@ -230,19 +311,44 @@ const WORDLE_WORDS = [
   { word: 'OSIMHEN', hint: 'Nigerian striker, Napoli' },
 ];
 
-// Filter to only 5-6 letter words for Wordle-style play
+// Filter to only 5-6 letter words for Wordle-style play (static fallback)
 const VALID_WORDLE = WORDLE_WORDS.filter((w) => w.word.length >= 5 && w.word.length <= 6);
 
+async function wordleFromApi(): Promise<{ word: string; hint: string }> {
+  const code = pickOne([...SUPPORTED_COMPETITIONS] as LeagueCode[]);
+  const teams = await getLeagueTeams(code);
+  const team = pickOne(teams);
+  const squad = await getTeamSquad(team.idTeam);
+
+  const candidates = squad
+    .map((p) => {
+      const surname = playerLastName(p.strPlayer);
+      const word = surname.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z]/g, '');
+      return { word, player: p, club: team.strTeam };
+    })
+    .filter(({ word }) => word.length >= 5 && word.length <= 6);
+
+  if (candidates.length === 0) throw new Error('No valid surnames found');
+
+  const { word, player, club } = pickOne(candidates);
+  const hint = `${player.strNationality} ${player.strPosition.toLowerCase()}, ${club}`;
+  return { word, hint };
+}
+
 export async function generateWordle(): Promise<{ payload: WordlePayload; solution: WordleSolution }> {
-  const entry = pickOne(VALID_WORDLE);
-  return {
-    payload: {
-      length: entry.word.length,
-      maxAttempts: 6,
-      hint: entry.hint,
-    },
-    solution: { answer: entry.word },
-  };
+  try {
+    const { word, hint } = await wordleFromApi();
+    return {
+      payload: { length: word.length, maxAttempts: 6, hint },
+      solution: { answer: word },
+    };
+  } catch {
+    const entry = pickOne(VALID_WORDLE);
+    return {
+      payload: { length: entry.word.length, maxAttempts: 6, hint: entry.hint },
+      solution: { answer: entry.word },
+    };
+  }
 }
 
 // ─── Higher / Lower ─────────────────────────────────────────────────────────
@@ -293,7 +399,15 @@ const HIGHER_LOWER_POOL: HigherLowerPlayer[] = [
 const ROUNDS = 8;
 
 export async function generateHigherLower(): Promise<{ payload: HigherLowerPayload; solution: HigherLowerSolution }> {
-  const players = pick(HIGHER_LOWER_POOL, ROUNDS);
+  // Query MongoDB only when connected; fall back to hardcoded pool otherwise
+  const dbPlayers = mongoose.connection.readyState === 1
+    ? await HigherLowerPlayer.find().lean().catch(() => [])
+    : [];
+  const pool = dbPlayers.length >= ROUNDS
+    ? dbPlayers.map((p) => ({ name: p.name, club: p.club, nationality: p.nationality, position: p.position, valueMEur: p.valueMEur }))
+    : HIGHER_LOWER_POOL;
+
+  const players = pick(pool, ROUNDS);
 
   return {
     payload: {
