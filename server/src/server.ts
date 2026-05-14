@@ -2,7 +2,7 @@ import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { createApp } from './app';
 import { connectDb } from './config/db';
-import { env } from './config/env';
+import { env, isAllowedOrigin } from './config/env';
 import { scheduleDailyPuzzleJob, runDailyPuzzleJob } from './jobs/dailyPuzzleJob';
 import { seedHigherLowerPlayers } from './jobs/seedHigherLower';
 import { registerDuelSocket } from './sockets/duelSocket';
@@ -20,7 +20,10 @@ async function main() {
   const server = http.createServer(app);
 
   const io = new SocketIOServer(server, {
-    cors: { origin: env.clientOrigin, credentials: true },
+    cors: {
+      origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+      credentials: true,
+    },
   });
 
   io.on('connection', (socket) => {

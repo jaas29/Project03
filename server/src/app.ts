@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { env } from './config/env';
+import { env, isAllowedOrigin } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/auth.routes';
 import { duelsRouter } from './routes/duels';
@@ -15,7 +15,10 @@ export function createApp() {
   const app = express();
 
   app.use(helmet());
-  app.use(cors({ origin: env.clientOrigin, credentials: true }));
+  app.use(cors({
+    origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+    credentials: true,
+  }));
   app.use(express.json({ limit: '1mb' }));
   app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 
