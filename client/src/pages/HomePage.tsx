@@ -8,7 +8,7 @@ interface DailyStats {
 }
 
 export default function HomePage() {
-  const [stats, setStats] = useState<DailyStats>({
+  const [stats] = useState<DailyStats>({
     playersToday: 2841,
     streak: 0,
     puzzleNumber: 42,
