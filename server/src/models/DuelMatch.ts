@@ -9,6 +9,7 @@ export interface IDuelMatch extends Document {
   status: 'pending' | 'active' | 'finished';
   eloDelta: number;
   finishedAt: Date | null;
+  inviteToken: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,8 +19,8 @@ const DuelMatchSchema = new Schema<IDuelMatch>(
     players: {
       type: [{ type: Schema.Types.ObjectId, ref: 'User' }],
       validate: {
-        validator: (v: Types.ObjectId[]) => v.length === 2,
-        message: 'Exactly 2 players required',
+        validator: (v: Types.ObjectId[]) => v.length >= 1 && v.length <= 2,
+        message: '1 or 2 players required',
       },
       required: true,
     },
@@ -30,10 +31,12 @@ const DuelMatchSchema = new Schema<IDuelMatch>(
     status: { type: String, enum: ['pending', 'active', 'finished'], default: 'active' },
     eloDelta: { type: Number, default: 0 },
     finishedAt: { type: Date, default: null },
+    inviteToken: { type: String, default: null },
   },
   { timestamps: true }
 );
 
-DuelMatchSchema.index({ 'players': 1, status: 1 });
+DuelMatchSchema.index({ players: 1, status: 1 });
+DuelMatchSchema.index({ inviteToken: 1 }, { unique: true, sparse: true });
 
 export const DuelMatch = mongoose.model<IDuelMatch>('DuelMatch', DuelMatchSchema);

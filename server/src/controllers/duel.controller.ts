@@ -1,4 +1,6 @@
+import crypto from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
+import { Types } from 'mongoose';
 import { DuelMatch } from '../models/DuelMatch';
 import { User } from '../models/User';
 import { Puzzle } from '../models/Puzzle';
@@ -79,6 +81,53 @@ export async function getMatch(req: Request, res: Response, next: NextFunction) 
     }
 
     res.json({ match });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createInvite(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { puzzleType } = req.body as { puzzleType: PuzzleType };
+
+    const puzzle = await Puzzle.findOne({ date: todayUTC(), type: puzzleType })
+      .select('-solution')
+      .lean();
+    if (!puzzle) return res.status(404).json({ error: `No ${puzzleType} puzzle available for today` });
+
+    const inviteToken = crypto.randomBytes(8).toString('hex');
+
+    const match = await DuelMatch.create({
+      players: [req.user!.sub],
+      puzzleId: puzzle._id,
+      mode: 'hotseat',
+      scores: [null, null],
+      status: 'pending',
+      inviteToken,
+    });
+
+    res.status(201).json({ matchId: match.id, inviteToken });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function joinByToken(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { token } = req.params;
+    const userId = req.user!.sub;
+
+    const match = await DuelMatch.findOne({ inviteToken: token });
+    if (!match) return res.status(404).json({ error: 'Invite not found' });
+    if (match.status === 'finished') return res.status(410).json({ error: 'This duel is already finished' });
+    if (match.players.length >= 2) return res.status(409).json({ error: 'This duel already has two players' });
+    if (match.players[0].toString() === userId) return res.status(400).json({ error: 'Cannot duel yourself' });
+
+    match.players.push(new Types.ObjectId(userId));
+    match.status = 'active';
+    await match.save();
+
+    res.json({ matchId: match.id });
   } catch (err) {
     next(err);
   }

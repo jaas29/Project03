@@ -45,6 +45,8 @@ export default function Duel() {
   const [searchParams, setSearchParams] = useSearchParams();
   const matchId = searchParams.get('match');
 
+  const joinToken = searchParams.get('join');
+
   const [phase, setPhase] = useState<Phase>(matchId ? 'loading' : 'lobby');
   const [match, setMatch] = useState<DuelMatchData | null>(null);
   const [playerIndex, setPlayerIndex] = useState<0 | 1 | null>(null);
@@ -53,9 +55,12 @@ export default function Duel() {
   // Lobby state
   const [lobbyTab, setLobbyTab] = useState<LobbyTab>('quickplay');
   const [puzzleType, setPuzzleType] = useState<PuzzleType>('grid');
-  const [opponent, setOpponent] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Invite link state
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [pendingMatchId, setPendingMatchId] = useState<string | null>(null);
 
   // Queue state
   const [queuePosition, setQueuePosition] = useState(0);
@@ -176,23 +181,34 @@ export default function Duel() {
     };
   }, [playerIndex, stopTimer, setSearchParams]);
 
+  // ── Join via invite token (e.g. /duel?join=<token>) ───────────────────
+  useEffect(() => {
+    if (!joinToken) return;
+    setPhase('loading');
+    api.post<{ matchId: string }>(`/api/duels/join/${joinToken}`)
+      .then(({ data }) => setSearchParams({ match: data.matchId }))
+      .catch((err) => { setPageError(extractApiError(err)); setPhase('lobby'); });
+  }, [joinToken, setSearchParams]);
+
   // ── Actions ────────────────────────────────────────────────────────────
 
-  async function handleHotseat(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleCreateInvite() {
     setCreateError(null);
     setCreating(true);
     try {
-      const { data } = await api.post<{ matchId: string }>('/api/duels/hotseat', {
-        opponentUsername: opponent.trim(),
-        puzzleType,
-      });
-      setSearchParams({ match: data.matchId });
+      const { data } = await api.post<{ matchId: string; inviteToken: string }>('/api/duels/invite', { puzzleType });
+      setInviteToken(data.inviteToken);
+      setPendingMatchId(data.matchId);
     } catch (err) {
       setCreateError(extractApiError(err));
     } finally {
       setCreating(false);
     }
+  }
+
+  function handleStartInvitePlay() {
+    if (!pendingMatchId) return;
+    setSearchParams({ match: pendingMatchId });
   }
 
   function handleQuickplay() {
@@ -250,7 +266,9 @@ export default function Duel() {
     return Math.max(0, base - Math.max(0, seconds - 30));
   }
 
-  const matchUrl = `${window.location.origin}/duel?match=${match?._id ?? matchId ?? ''}`;
+  const matchUrl = inviteToken
+    ? `${window.location.origin}/duel?join=${inviteToken}`
+    : `${window.location.origin}/duel?match=${match?._id ?? matchId ?? ''}`;
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -284,10 +302,10 @@ export default function Duel() {
             setPuzzleType={setPuzzleType}
             lobbyTab={lobbyTab}
             setLobbyTab={setLobbyTab}
-            opponent={opponent}
-            setOpponent={setOpponent}
+            inviteLink={inviteToken ? `${window.location.origin}/duel?join=${inviteToken}` : null}
             onQuickplay={handleQuickplay}
-            onHotseat={handleHotseat}
+            onCreateInvite={handleCreateInvite}
+            onStartInvitePlay={handleStartInvitePlay}
             creating={creating}
             error={createError}
           />
@@ -363,10 +381,10 @@ function LobbyPhase({
   setPuzzleType,
   lobbyTab,
   setLobbyTab,
-  opponent,
-  setOpponent,
+  inviteLink,
   onQuickplay,
-  onHotseat,
+  onCreateInvite,
+  onStartInvitePlay,
   creating,
   error,
 }: {
@@ -375,10 +393,10 @@ function LobbyPhase({
   setPuzzleType: (t: PuzzleType) => void;
   lobbyTab: LobbyTab;
   setLobbyTab: (t: LobbyTab) => void;
-  opponent: string;
-  setOpponent: (v: string) => void;
+  inviteLink: string | null;
   onQuickplay: () => void;
-  onHotseat: (e: React.FormEvent<HTMLFormElement>) => void;
+  onCreateInvite: () => void;
+  onStartInvitePlay: () => void;
   creating: boolean;
   error: string | null;
 }) {
@@ -485,34 +503,83 @@ function LobbyPhase({
           )}
 
           {lobbyTab === 'invite' && (
-            <form onSubmit={onHotseat} className="mt-5 space-y-4">
-              <div>
-                <label className="mb-1.5 block font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
-                  Opponent username
-                </label>
-                <input
-                  type="text"
-                  value={opponent}
-                  onChange={(e) => setOpponent(e.target.value)}
-                  placeholder="e.g. darius_pm"
-                  required
-                  className="w-full rounded-2xl border-2 border-ink bg-cream-50 px-4 py-3 font-mono text-sm text-ink placeholder:text-ink/30 focus:outline-none focus:ring-4 focus:ring-ink/10"
-                />
-              </div>
-              <p className="font-mono text-[11px] uppercase tracking-widest text-ink-soft">
-                Both players take turns on the same device.
-              </p>
-              <button
-                type="submit"
-                disabled={creating || !opponent.trim()}
-                className="w-full rounded-full bg-ink py-4 font-display text-sm uppercase tracking-widest text-cream-50 transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {creating ? 'Creating…' : 'Start Duel →'}
-              </button>
-            </form>
+            <InviteTab
+              inviteLink={inviteLink}
+              creating={creating}
+              onCreateInvite={onCreateInvite}
+              onStartInvitePlay={onStartInvitePlay}
+            />
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Invite tab ───────────────────────────────────────────────────────────────
+
+function InviteTab({
+  inviteLink,
+  creating,
+  onCreateInvite,
+  onStartInvitePlay,
+}: {
+  inviteLink: string | null;
+  creating: boolean;
+  onCreateInvite: () => void;
+  onStartInvitePlay: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    if (!inviteLink) return;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  if (!inviteLink) {
+    return (
+      <div className="mt-5 space-y-4">
+        <p className="font-mono text-[11px] uppercase tracking-widest text-ink-soft">
+          Generate a link and send it to your opponent. You play first, they follow.
+        </p>
+        <button
+          type="button"
+          onClick={onCreateInvite}
+          disabled={creating}
+          className="w-full rounded-full bg-ink py-4 font-display text-sm uppercase tracking-widest text-cream-50 transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {creating ? 'Creating…' : 'Create Invite Link'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 space-y-4">
+      <p className="font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
+        Share this link with your opponent
+      </p>
+      <div className="flex items-center gap-3">
+        <div className="flex-1 truncate rounded-2xl border-2 border-ink/20 bg-cream-50 px-4 py-3 font-mono text-sm text-ink-soft">
+          {inviteLink}
+        </div>
+        <button
+          type="button"
+          onClick={copy}
+          className="shrink-0 rounded-full border-2 border-ink bg-cream-50 px-5 py-3 font-mono text-[11px] uppercase tracking-widest text-ink transition-transform hover:-translate-y-0.5"
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onStartInvitePlay}
+        className="w-full rounded-full bg-gold py-4 font-display text-sm uppercase tracking-widest text-ink shadow-card-lift transition-transform hover:-translate-y-0.5"
+      >
+        Start Your Turn →
+      </button>
     </div>
   );
 }
