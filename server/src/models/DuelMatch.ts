@@ -9,7 +9,7 @@ export interface IDuelMatch extends Document {
   status: 'pending' | 'active' | 'finished';
   eloDelta: number;
   finishedAt: Date | null;
-  inviteToken: string | null;
+  inviteToken?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +31,7 @@ const DuelMatchSchema = new Schema<IDuelMatch>(
     status: { type: String, enum: ['pending', 'active', 'finished'], default: 'active' },
     eloDelta: { type: Number, default: 0 },
     finishedAt: { type: Date, default: null },
-    inviteToken: { type: String, default: null },
+    inviteToken: { type: String },
   },
   { timestamps: true }
 );
