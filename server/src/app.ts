@@ -9,6 +9,7 @@ import { duelsRouter } from './routes/duels';
 import puzzlesRouter from './routes/puzzles';
 import leaderboardRouter from './routes/leaderboard';
 import adminRouter from './routes/admin';
+import profileRouter from './routes/profile'; // ← new
 
 export function createApp() {
   const app = express();
@@ -27,6 +28,7 @@ export function createApp() {
   app.use('/api/duels', duelsRouter);
   app.use('/api/leaderboard', leaderboardRouter);
   app.use('/api/admin', adminRouter);
+  app.use('/api/profile', profileRouter); // ← new: covers /api/profile/me and /api/profile/:username
 
   app.use(errorHandler);
   return app;
