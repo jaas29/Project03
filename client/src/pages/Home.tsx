@@ -1,10 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
 import { AppNavbar } from '../components/AppNavbar';
+import { useTodayProgress } from '../hooks/useTodayProgress';
 
 export default function Home() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { progress } = useTodayProgress();
 
   const today = new Date()
     .toLocaleDateString('en-US', {
@@ -47,7 +49,7 @@ export default function Home() {
             color="pitch-jersey"
             title="Football Grid"
             blurb="Place a player at every intersection."
-            status="Ready"
+            status={progress['grid']}
             to="/play/grid"
             icon={<GridIcon />}
           />
@@ -56,7 +58,7 @@ export default function Home() {
             color="flame"
             title="Connections"
             blurb="Find four hidden football themes."
-            status="Next"
+            status={progress['connections']}
             to="/play/connections"
             icon={<ConnectionsIcon />}
           />
@@ -65,7 +67,7 @@ export default function Home() {
             color="gold"
             title="Soccer Wordle"
             blurb="Guess the footballer's surname."
-            status="Next"
+            status={progress['wordle']}
             to="/play/wordle"
             icon={<WordleIcon />}
           />
@@ -146,7 +148,7 @@ interface GameCardProps {
   color: 'pitch-jersey' | 'flame' | 'gold';
   title: string;
   blurb: string;
-  status: string;
+  status?: 'not-started' | 'completed';
   to: string;
   icon: React.ReactNode;
 }
@@ -176,9 +178,11 @@ function GameCard({ number, color, title, blurb, status, to, icon }: GameCardPro
         </div>
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-ink/10 pt-3">
-        <div className="font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
-          {status}
-        </div>
+        {status && (
+          <div className="font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
+            {status === 'completed' ? '✓ Completed' : 'Not started'}
+          </div>
+        )}
         <Link
           to={to}
           className="rounded-full bg-ink px-4 py-2 font-display text-[11px] uppercase tracking-widest text-cream-50 transition-transform hover:-translate-y-0.5"

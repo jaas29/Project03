@@ -5,6 +5,7 @@ import { Wordmark } from '../components/Wordmark';
 import { canonicalPlayerName, playerNameSuggestions } from '../lib/playerNames';
 import { loadGame, saveGame } from '../lib/gameStorage';
 import { useAuth } from '../store/auth';
+import { markPuzzleComplete } from '../hooks/useTodayProgress';
 import type { PuzzleType } from '../types/puzzle';
 
 type RoutePuzzleType = Extract<PuzzleType, 'grid' | 'connections' | 'wordle'>;
@@ -313,6 +314,7 @@ export function GridGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuz
       });
       setScore(data.score);
       setResult(data);
+      markPuzzleComplete('grid');
       refreshUser();
     } catch (err) {
       setSubmitError(extractApiError(err));
@@ -591,6 +593,7 @@ export function ConnectionsGame({ puzzle, usingDemo, onDuelComplete }: { puzzle:
       });
       setScore(data.score);
       setResult(data);
+      markPuzzleComplete('connections');
       refreshUser();
     } catch (err) {
       setSubmitError(extractApiError(err));
@@ -764,6 +767,7 @@ export function WordleGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiP
       });
       setScore(data.score);
       setResult(data);
+      markPuzzleComplete('wordle');
       refreshUser();
     } catch (err) {
       setSubmitError(extractApiError(err));
