@@ -219,7 +219,7 @@ type SportsDbPlayer = {
   strNationality?: string;
 };
 
-const TEAM_CREST_CACHE_KEY = 'jbd.grid.teamCrestCache.v1';
+const TEAM_CREST_CACHE_KEY = 'jbd.grid.teamCrestCache.v2';
 const PLAYER_HEADSHOT_CACHE_KEY = 'jbd.grid.playerHeadshotCache.v1';
 
 function readAssetCache(key: string): Record<string, string> {
@@ -452,6 +452,8 @@ export function GridGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuz
             };
             const target = normalizeTeamName(teamName);
             const targetTokens = tokenizeNormalized(teamName);
+            const RESERVE_REGEX = /\b(ii|iii|iv|reserves?|youth|ladies|women|feminin|feminine|u\d\d?)\b/i;
+
             const rankedTeams = (data.teams ?? [])
               .map((team) => {
                 const fullName = team.strTeam ?? '';
@@ -469,17 +471,20 @@ export function GridGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuz
                 const overlapFull = targetTokens.filter((token) => fullTokens.includes(token)).length;
                 const overlapShort = targetTokens.filter((token) => shortTokens.includes(token)).length;
                 const overlapScore = Math.max(overlapFull, overlapShort);
+                const reservePenalty = RESERVE_REGEX.test(fullName) || RESERVE_REGEX.test(shortName) ? -5 : 0;
 
                 return {
                   team,
-                  score: exactScore + containsScore + overlapScore,
+                  score: exactScore + containsScore + overlapScore + reservePenalty,
+                  nameLength: fullName.length,
                 };
               })
               .filter((entry) => Boolean((entry.team.strBadge ?? '').trim()))
-              .sort((a, b) => b.score - a.score);
+              .sort((a, b) => b.score - a.score || a.nameLength - b.nameLength);
 
-            const crest = (rankedTeams[0]?.team.strBadge ?? '').trim();
-            if (crest) fetched[cacheKey] = crest;
+            const best = rankedTeams[0];
+            const crest = (best?.team.strBadge ?? '').trim();
+            if (best && best.score >= 2 && crest) fetched[cacheKey] = crest;
           } catch {
             // Best effort fallback only.
           }
@@ -684,6 +689,8 @@ export function GridGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuz
                   guesses={guesses}
                   playerHeadshots={playerHeadshots}
                   correctCells={result?.validation.kind === 'grid' ? result.validation.correctCells : []}
+                  highlightCells={matchOptions}
+                  onCellClick={chooseMatch}
                 />
               ))}
             </div>
@@ -749,26 +756,14 @@ export function GridGame({ puzzle, usingDemo, onDuelComplete }: { puzzle: ApiPuz
           )}
 
           {matchOptions.length > 1 && (
-            <div className="mt-4 rounded-xl border-2 border-ink bg-cream-100 p-4">
-              <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-ink-soft">
-                Multiple matches for {pendingName}. Choose a square:
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border-2 border-gold bg-gold/10 px-4 py-3">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-widest text-gold-dark">
+                Click a highlighted square to place {pendingName}
               </p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {matchOptions.map((cellKey) => (
-                  <button
-                    key={cellKey}
-                    type="button"
-                    onClick={() => chooseMatch(cellKey)}
-                    className="rounded-xl border-2 border-ink bg-cream-50 px-3 py-2 text-left font-display text-sm uppercase tracking-widest text-ink transition-transform hover:-translate-y-0.5"
-                  >
-                    {cellKey.replace(',', ' x ')}
-                  </button>
-                ))}
-              </div>
               <button
                 type="button"
                 onClick={cancelMatchChoice}
-                className="mt-3 rounded-full border-2 border-ink px-4 py-2 font-display text-xs uppercase tracking-widest text-ink"
+                className="shrink-0 rounded-full border-2 border-ink px-3 py-1 font-display text-xs uppercase tracking-widest text-ink"
               >
                 Cancel
               </button>
@@ -790,12 +785,16 @@ function RowFragment({
   guesses,
   playerHeadshots,
   correctCells,
+  highlightCells = [],
+  onCellClick,
 }: {
   row: string;
   cols: string[];
   guesses: Record<string, GridGuess>;
   playerHeadshots: Record<string, string>;
   correctCells: string[];
+  highlightCells?: string[];
+  onCellClick?: (key: string) => void;
 }) {
   return (
     <>
@@ -806,6 +805,21 @@ function RowFragment({
         const playerImage = guess?.value ? playerHeadshots[guess.value] : undefined;
         const isCorrect = guess?.correct === true || correctCells.includes(key);
         const isWrong = guess?.correct === false;
+        const isHighlight = highlightCells.includes(key);
+
+        if (isHighlight) {
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onCellClick?.(key)}
+              className="flex aspect-square min-h-22 cursor-pointer animate-pulse items-center justify-center rounded-xl border-4 border-gold bg-gold/30 px-3 text-center font-display text-[13px] uppercase tracking-widest text-gold-dark ring-2 ring-gold ring-offset-1 transition-colors hover:bg-gold/60 sm:min-h-24 sm:text-sm"
+            >
+              ?
+            </button>
+          );
+        }
+
         return (
           <div
             key={key}

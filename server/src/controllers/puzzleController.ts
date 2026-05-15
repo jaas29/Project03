@@ -14,6 +14,44 @@ function todayUTC(): string {
 
 const PUZZLE_TYPES: PuzzleType[] = ['grid', 'connections', 'wordle', 'higherlower'];
 
+const STATIC_FALLBACK_CRESTS_BY_COL: Record<string, string> = {
+  RMA: 'https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/250px-Real_Madrid_CF.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  ARS: 'https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Arsenal_FC.svg/250px-Arsenal_FC.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  BAY: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/FC_Bayern_M%C3%BCnchen_logo_%282024%29.svg/250px-FC_Bayern_M%C3%BCnchen_logo_%282024%29.svg.png',
+  BAR: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/250px-FC_Barcelona_%28crest%29.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  CHE: 'https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/Chelsea_FC.svg/250px-Chelsea_FC.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  PSG: 'https://upload.wikimedia.org/wikipedia/en/thumb/a/a7/Paris_Saint-Germain_F.C..svg/250px-Paris_Saint-Germain_F.C..svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  MUN: 'https://upload.wikimedia.org/wikipedia/en/thumb/7/7a/Manchester_United_FC_crest.svg/250px-Manchester_United_FC_crest.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  INT: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/FC_Internazionale_Milano_2021.svg/250px-FC_Internazionale_Milano_2021.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  JUV: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Juventus_FC_-_logo_black_%28Italy%2C_2020%29.svg/250px-Juventus_FC_-_logo_black_%28Italy%2C_2020%29.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+};
+
+const STATIC_FALLBACK_CRESTS_BY_NAME: Record<string, string> = {
+  realmadrid: STATIC_FALLBACK_CRESTS_BY_COL.RMA,
+  arsenal: STATIC_FALLBACK_CRESTS_BY_COL.ARS,
+  bayernmunich: STATIC_FALLBACK_CRESTS_BY_COL.BAY,
+  barcelona: STATIC_FALLBACK_CRESTS_BY_COL.BAR,
+  chelsea: STATIC_FALLBACK_CRESTS_BY_COL.CHE,
+  parissaintgermain: STATIC_FALLBACK_CRESTS_BY_COL.PSG,
+  manchesterunited: STATIC_FALLBACK_CRESTS_BY_COL.MUN,
+  intermilan: STATIC_FALLBACK_CRESTS_BY_COL.INT,
+  juventus: STATIC_FALLBACK_CRESTS_BY_COL.JUV,
+};
+
+function normalizeTeamLookup(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeCrestUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  return trimmed.startsWith('//') ? `https:${trimmed}` : trimmed;
+}
+
 export async function getTodayPuzzles(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const date = todayUTC();
@@ -48,6 +86,27 @@ function toPublicPuzzle(puzzle: { [key: string]: unknown; type?: unknown; payloa
   if (publicPuzzle.type !== 'grid' || !isRecord(publicPuzzle.payload)) return publicPuzzle;
 
   const payload = { ...publicPuzzle.payload };
+  if (isRecord(payload.teamMeta)) {
+    const nextTeamMeta: Record<string, unknown> = {};
+    Object.entries(payload.teamMeta).forEach(([col, meta]) => {
+      if (!isRecord(meta)) {
+        nextTeamMeta[col] = meta;
+        return;
+      }
+
+      const name = typeof meta.name === 'string' ? meta.name : '';
+      let crest = typeof meta.crest === 'string' ? normalizeCrestUrl(meta.crest) : '';
+      if (!crest) {
+        crest = STATIC_FALLBACK_CRESTS_BY_COL[col]
+          ?? STATIC_FALLBACK_CRESTS_BY_NAME[normalizeTeamLookup(name)]
+          ?? '';
+      }
+
+      nextTeamMeta[col] = { ...meta, name, crest };
+    });
+    payload.teamMeta = nextTeamMeta;
+  }
+
   if (!Array.isArray(payload.playerPool) || payload.playerPool.length === 0) {
     payload.playerPool = derivePlayerPool(solution);
   }

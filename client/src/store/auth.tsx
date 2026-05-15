@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ACCESS_KEY, REFRESH_KEY, api } from '../api/client';
+import { clearAllGames } from '../lib/gameStorage';
 import type { PublicUser } from '../types/user';
 
 interface AuthContextValue {
@@ -62,12 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
+    clearAllGames();
     const { data } = await api.post<AuthResponse>('/api/auth/login', { email, password });
     persistTokens(data.accessToken, data.refreshToken);
     setUser(data.user);
   }, []);
 
   const register = useCallback(async (email: string, username: string, password: string) => {
+    clearAllGames();
     const { data } = await api.post<AuthResponse>('/api/auth/register', { email, username, password });
     persistTokens(data.accessToken, data.refreshToken);
     setUser(data.user);
@@ -76,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem(ACCESS_KEY);
     localStorage.removeItem(REFRESH_KEY);
+    clearAllGames();
     setUser(null);
   }, []);
 

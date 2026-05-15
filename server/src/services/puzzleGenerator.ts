@@ -39,6 +39,18 @@ function teamKey(team: { strTeamShort?: string; strTeam: string }): string {
 // 3×3 grid: rows = competitions, cols = teams. Each cell = a player who
 // played for that team in that competition.
 
+const FALLBACK_TEAM_CRESTS: Record<string, string> = {
+  RMA: '//upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/250px-Real_Madrid_CF.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  ARS: '//upload.wikimedia.org/wikipedia/en/thumb/5/53/Arsenal_FC.svg/250px-Arsenal_FC.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  BAY: '//upload.wikimedia.org/wikipedia/commons/thumb/8/8d/FC_Bayern_M%C3%BCnchen_logo_%282024%29.svg/250px-FC_Bayern_M%C3%BCnchen_logo_%282024%29.svg.png',
+  BAR: '//upload.wikimedia.org/wikipedia/en/thumb/4/47/FC_Barcelona_%28crest%29.svg/250px-FC_Barcelona_%28crest%29.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  CHE: '//upload.wikimedia.org/wikipedia/en/thumb/c/cc/Chelsea_FC.svg/250px-Chelsea_FC.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  PSG: '//upload.wikimedia.org/wikipedia/en/thumb/a/a7/Paris_Saint-Germain_F.C..svg/250px-Paris_Saint-Germain_F.C..svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  MUN: '//upload.wikimedia.org/wikipedia/en/thumb/7/7a/Manchester_United_FC_crest.svg/250px-Manchester_United_FC_crest.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  INT: '//upload.wikimedia.org/wikipedia/commons/thumb/0/05/FC_Internazionale_Milano_2021.svg/250px-FC_Internazionale_Milano_2021.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+  JUV: '//upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Juventus_FC_-_logo_black_%28Italy%2C_2020%29.svg/250px-Juventus_FC_-_logo_black_%28Italy%2C_2020%29.svg.png?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail',
+};
+
 export interface GridCell {
   row: string;   // competition code
   col: string;   // team tla
@@ -65,9 +77,9 @@ const GRID_FALLBACKS: Array<{ payload: GridPayload; solution: GridSolution }> = 
       rows: ['Brazil', 'France', 'Germany'],
       cols: ['RMA', 'ARS', 'BAY'],
       teamMeta: {
-        RMA: { name: 'Real Madrid', crest: '' },
-        ARS: { name: 'Arsenal', crest: '' },
-        BAY: { name: 'Bayern Munich', crest: '' },
+        RMA: { name: 'Real Madrid', crest: FALLBACK_TEAM_CRESTS.RMA },
+        ARS: { name: 'Arsenal', crest: FALLBACK_TEAM_CRESTS.ARS },
+        BAY: { name: 'Bayern Munich', crest: FALLBACK_TEAM_CRESTS.BAY },
       },
       playerPool: [
         'Roberto Carlos', 'Ronaldo', 'Marcelo', 'Casemiro', 'Rodrygo', 'Vinicius Junior', 'Eder Militao',
@@ -101,9 +113,9 @@ const GRID_FALLBACKS: Array<{ payload: GridPayload; solution: GridSolution }> = 
       rows: ['Brazil', 'France', 'Spain'],
       cols: ['BAR', 'CHE', 'PSG'],
       teamMeta: {
-        BAR: { name: 'Barcelona', crest: '' },
-        CHE: { name: 'Chelsea', crest: '' },
-        PSG: { name: 'Paris Saint-Germain', crest: '' },
+        BAR: { name: 'Barcelona', crest: FALLBACK_TEAM_CRESTS.BAR },
+        CHE: { name: 'Chelsea', crest: FALLBACK_TEAM_CRESTS.CHE },
+        PSG: { name: 'Paris Saint-Germain', crest: FALLBACK_TEAM_CRESTS.PSG },
       },
       playerPool: [
         'Ronaldinho', 'Neymar', 'Dani Alves', 'Rivaldo',
@@ -137,9 +149,9 @@ const GRID_FALLBACKS: Array<{ payload: GridPayload; solution: GridSolution }> = 
       rows: ['Argentina', 'Portugal', 'Netherlands'],
       cols: ['MUN', 'INT', 'JUV'],
       teamMeta: {
-        MUN: { name: 'Manchester United', crest: '' },
-        INT: { name: 'Inter Milan', crest: '' },
-        JUV: { name: 'Juventus', crest: '' },
+        MUN: { name: 'Manchester United', crest: FALLBACK_TEAM_CRESTS.MUN },
+        INT: { name: 'Inter Milan', crest: FALLBACK_TEAM_CRESTS.INT },
+        JUV: { name: 'Juventus', crest: FALLBACK_TEAM_CRESTS.JUV },
       },
       playerPool: [
         'Lisandro Martinez', 'Angel Di Maria', 'Carlos Tevez',
@@ -170,6 +182,33 @@ const GRID_FALLBACKS: Array<{ payload: GridPayload; solution: GridSolution }> = 
 ];
 
 let lastGridFallbackIndex = -1;
+
+function normalizeTeamLabel(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\b(fc|cf|ac|sc|afc|sfc)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tokenizeTeamLabel(value: string): string[] {
+  return normalizeTeamLabel(value).match(/[a-z0-9]+/g) ?? [];
+}
+
+const FALLBACK_TEAM_LEAGUES: Record<string, LeagueCode[]> = {
+  'Real Madrid': ['PD'],
+  Arsenal: ['PL'],
+  'Bayern Munich': ['BL1'],
+  Barcelona: ['PD'],
+  Chelsea: ['PL'],
+  'Paris Saint-Germain': ['FL1'],
+  'Manchester United': ['PL'],
+  'Inter Milan': ['SA'],
+  Juventus: ['SA'],
+};
 
 function pickGridFallback(): { payload: GridPayload; solution: GridSolution } {
   if (GRID_FALLBACKS.length === 1) return GRID_FALLBACKS[0];

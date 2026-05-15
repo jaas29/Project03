@@ -95,3 +95,10 @@ export async function getTeamSquad(teamId: string): Promise<ApiPlayer[]> {
     return data.player ?? [];
   });
 }
+
+export async function getTeamById(teamId: string): Promise<ApiTeam | null> {
+  return getWithDailyCache(`team:${teamId}`, async () => {
+    const data = await get<{ teams: ApiTeam[] | null }>(`/lookupteam.php?id=${teamId}`);
+    return data.teams?.[0] ?? null;
+  });
+}
