@@ -21,9 +21,37 @@ describe('calculateScore', () => {
     expect(score).toBeGreaterThanOrEqual(0);
   });
 
-  it('score is never above 1000', () => {
-    const score = calculateScore({ type: 'grid', attempts: 9, durationMs: 0, solved: true });
-    expect(score).toBeLessThanOrEqual(1000);
+  it('grid gives max 150 when all cells and all lines are completed', () => {
+    const score = calculateScore({
+      type: 'grid',
+      attempts: 9,
+      durationMs: 0,
+      solved: true,
+      validation: {
+        kind: 'grid',
+        correctCells: [
+          'R1,C1', 'R1,C2', 'R1,C3',
+          'R2,C1', 'R2,C2', 'R2,C3',
+          'R3,C1', 'R3,C2', 'R3,C3',
+        ],
+      },
+    });
+    expect(score).toBe(150);
+  });
+
+  it('grid gives partial credit even if puzzle is not solved', () => {
+    const score = calculateScore({
+      type: 'grid',
+      attempts: 4,
+      durationMs: 20_000,
+      solved: false,
+      validation: {
+        kind: 'grid',
+        correctCells: ['R1,C1', 'R1,C2', 'R1,C3', 'R2,C1'],
+      },
+    });
+    // 4 correct cells (40) + one completed row (10)
+    expect(score).toBe(50);
   });
 
   it('connections: fewer attempts = higher score', () => {

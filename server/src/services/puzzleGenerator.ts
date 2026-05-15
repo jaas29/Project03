@@ -50,6 +50,7 @@ export interface GridPayload {
   cols: string[];  // 3 team tlas + names
   teamMeta: Record<string, { name: string; crest: string }>;
   playerPool?: string[]; // public autocomplete list; cell mapping stays hidden in solution
+  playerHeadshots?: Record<string, string>; // key = player name, value = headshot URL
 }
 
 export interface GridSolution {
@@ -58,41 +59,128 @@ export interface GridSolution {
 
 // Static fallback: rows = nationalities, cols = teams
 // Each cell = players of that nationality who played for that team (all-time)
-const GRID_FALLBACK: { payload: GridPayload; solution: GridSolution } = {
-  payload: {
-    rows: ['Brazil', 'France', 'Germany'],
-    cols: ['RMA', 'ARS', 'BAY'],
-    teamMeta: {
-      RMA: { name: 'Real Madrid',   crest: '' },
-      ARS: { name: 'Arsenal',       crest: '' },
-      BAY: { name: 'Bayern Munich', crest: '' },
+const GRID_FALLBACKS: Array<{ payload: GridPayload; solution: GridSolution }> = [
+  {
+    payload: {
+      rows: ['Brazil', 'France', 'Germany'],
+      cols: ['RMA', 'ARS', 'BAY'],
+      teamMeta: {
+        RMA: { name: 'Real Madrid', crest: '' },
+        ARS: { name: 'Arsenal', crest: '' },
+        BAY: { name: 'Bayern Munich', crest: '' },
+      },
+      playerPool: [
+        'Roberto Carlos', 'Ronaldo', 'Marcelo', 'Casemiro', 'Rodrygo', 'Vinicius Junior', 'Eder Militao',
+        'Edu', 'Gilberto Silva', 'Gabriel Martinelli', 'Gabriel Magalhaes',
+        'Ze Roberto', 'Giovanni Elber', 'Lucio',
+        'Zinedine Zidane', 'Karim Benzema', 'Raphael Varane', 'Ferland Mendy', 'Eduardo Camavinga',
+        'William Saliba', 'Thierry Henry', 'Robert Pires', 'Patrick Vieira', 'Nicolas Anelka',
+        'Franck Ribery', 'Kingsley Coman', 'Dayot Upamecano', 'Lucas Hernandez',
+        'Toni Kroos', 'Sami Khedira', 'Christoph Metzelder',
+        'Lukas Podolski', 'Per Mertesacker', 'Kai Havertz',
+        'Thomas Muller', 'Joshua Kimmich', 'Manuel Neuer', 'Jamal Musiala', 'Leroy Sane', 'Serge Gnabry',
+      ],
+      playerHeadshots: {},
     },
-    playerPool: [
-      'Roberto Carlos', 'Ronaldo', 'Marcelo', 'Casemiro', 'Rodrygo', 'Vinicius Junior', 'Eder Militao',
-      'Edu', 'Gilberto Silva', 'Gabriel Martinelli', 'Gabriel Magalhaes',
-      'Ze Roberto', 'Giovanni Elber', 'Lucio',
-      'Zinedine Zidane', 'Karim Benzema', 'Raphael Varane', 'Ferland Mendy', 'Eduardo Camavinga',
-      'William Saliba', 'Thierry Henry', 'Robert Pires', 'Patrick Vieira', 'Nicolas Anelka',
-      'Franck Ribery', 'Kingsley Coman', 'Dayot Upamecano', 'Lucas Hernandez',
-      'Toni Kroos', 'Sami Khedira', 'Christoph Metzelder',
-      'Lukas Podolski', 'Per Mertesacker', 'Kai Havertz',
-      'Thomas Muller', 'Joshua Kimmich', 'Manuel Neuer', 'Jamal Musiala', 'Leroy Sane', 'Serge Gnabry',
-    ],
-  },
-  solution: {
-    cells: {
-      'Brazil,RMA': ['Roberto Carlos', 'Ronaldo', 'Marcelo', 'Casemiro', 'Rodrygo', 'Vinicius Junior', 'Eder Militao'],
-      'Brazil,ARS': ['Edu', 'Gilberto Silva', 'Gabriel Martinelli', 'Gabriel Magalhaes'],
-      'Brazil,BAY': ['Ze Roberto', 'Giovanni Elber', 'Lucio'],
-      'France,RMA': ['Zinedine Zidane', 'Karim Benzema', 'Raphael Varane', 'Ferland Mendy', 'Eduardo Camavinga'],
-      'France,ARS': ['William Saliba', 'Thierry Henry', 'Robert Pires', 'Patrick Vieira', 'Nicolas Anelka'],
-      'France,BAY': ['Franck Ribery', 'Kingsley Coman', 'Dayot Upamecano', 'Lucas Hernandez'],
-      'Germany,RMA': ['Toni Kroos', 'Sami Khedira', 'Christoph Metzelder'],
-      'Germany,ARS': ['Lukas Podolski', 'Per Mertesacker', 'Kai Havertz'],
-      'Germany,BAY': ['Thomas Muller', 'Joshua Kimmich', 'Manuel Neuer', 'Jamal Musiala', 'Leroy Sane', 'Serge Gnabry'],
+    solution: {
+      cells: {
+        'Brazil,RMA': ['Roberto Carlos', 'Ronaldo', 'Marcelo', 'Casemiro', 'Rodrygo', 'Vinicius Junior', 'Eder Militao'],
+        'Brazil,ARS': ['Edu', 'Gilberto Silva', 'Gabriel Martinelli', 'Gabriel Magalhaes'],
+        'Brazil,BAY': ['Ze Roberto', 'Giovanni Elber', 'Lucio'],
+        'France,RMA': ['Zinedine Zidane', 'Karim Benzema', 'Raphael Varane', 'Ferland Mendy', 'Eduardo Camavinga'],
+        'France,ARS': ['William Saliba', 'Thierry Henry', 'Robert Pires', 'Patrick Vieira', 'Nicolas Anelka'],
+        'France,BAY': ['Franck Ribery', 'Kingsley Coman', 'Dayot Upamecano', 'Lucas Hernandez'],
+        'Germany,RMA': ['Toni Kroos', 'Sami Khedira', 'Christoph Metzelder'],
+        'Germany,ARS': ['Lukas Podolski', 'Per Mertesacker', 'Kai Havertz'],
+        'Germany,BAY': ['Thomas Muller', 'Joshua Kimmich', 'Manuel Neuer', 'Jamal Musiala', 'Leroy Sane', 'Serge Gnabry'],
+      },
     },
   },
-};
+  {
+    payload: {
+      rows: ['Brazil', 'France', 'Spain'],
+      cols: ['BAR', 'CHE', 'PSG'],
+      teamMeta: {
+        BAR: { name: 'Barcelona', crest: '' },
+        CHE: { name: 'Chelsea', crest: '' },
+        PSG: { name: 'Paris Saint-Germain', crest: '' },
+      },
+      playerPool: [
+        'Ronaldinho', 'Neymar', 'Dani Alves', 'Rivaldo',
+        'Thiago Silva', 'David Luiz', 'Willian', 'Oscar',
+        'Marquinhos',
+        'Thierry Henry', 'Ousmane Dembele', 'Jules Kounde',
+        'N Golo Kante', 'Claude Makelele',
+        'Kylian Mbappe', 'Blaise Matuidi', 'Presnel Kimpembe',
+        'Xavi', 'Andres Iniesta', 'Sergio Busquets', 'Pedri',
+        'Cesc Fabregas', 'Cesar Azpilicueta', 'Fernando Torres', 'Pedro',
+        'Sergio Ramos', 'Fabian Ruiz',
+      ],
+      playerHeadshots: {},
+    },
+    solution: {
+      cells: {
+        'Brazil,BAR': ['Ronaldinho', 'Neymar', 'Dani Alves', 'Rivaldo'],
+        'Brazil,CHE': ['Thiago Silva', 'David Luiz', 'Willian', 'Oscar'],
+        'Brazil,PSG': ['Neymar', 'Marquinhos', 'Thiago Silva'],
+        'France,BAR': ['Thierry Henry', 'Ousmane Dembele', 'Jules Kounde'],
+        'France,CHE': ['N Golo Kante', 'Claude Makelele'],
+        'France,PSG': ['Kylian Mbappe', 'Blaise Matuidi', 'Presnel Kimpembe'],
+        'Spain,BAR': ['Xavi', 'Andres Iniesta', 'Sergio Busquets', 'Pedri'],
+        'Spain,CHE': ['Cesc Fabregas', 'Cesar Azpilicueta', 'Fernando Torres', 'Pedro'],
+        'Spain,PSG': ['Sergio Ramos', 'Fabian Ruiz'],
+      },
+    },
+  },
+  {
+    payload: {
+      rows: ['Argentina', 'Portugal', 'Netherlands'],
+      cols: ['MUN', 'INT', 'JUV'],
+      teamMeta: {
+        MUN: { name: 'Manchester United', crest: '' },
+        INT: { name: 'Inter Milan', crest: '' },
+        JUV: { name: 'Juventus', crest: '' },
+      },
+      playerPool: [
+        'Lisandro Martinez', 'Angel Di Maria', 'Carlos Tevez',
+        'Lautaro Martinez', 'Javier Zanetti', 'Diego Milito',
+        'Paulo Dybala', 'Gonzalo Higuain',
+        'Cristiano Ronaldo', 'Bruno Fernandes', 'Nani',
+        'Luis Figo', 'Joao Mario', 'Joao Cancelo',
+        'Robin van Persie', 'Ruud van Nistelrooy', 'Edwin van der Sar',
+        'Wesley Sneijder', 'Denzel Dumfries', 'Stefan de Vrij',
+        'Matthijs de Ligt', 'Edgar Davids',
+      ],
+      playerHeadshots: {},
+    },
+    solution: {
+      cells: {
+        'Argentina,MUN': ['Lisandro Martinez', 'Angel Di Maria', 'Carlos Tevez'],
+        'Argentina,INT': ['Lautaro Martinez', 'Javier Zanetti', 'Diego Milito'],
+        'Argentina,JUV': ['Paulo Dybala', 'Carlos Tevez', 'Gonzalo Higuain', 'Angel Di Maria'],
+        'Portugal,MUN': ['Cristiano Ronaldo', 'Bruno Fernandes', 'Nani'],
+        'Portugal,INT': ['Luis Figo', 'Joao Mario'],
+        'Portugal,JUV': ['Cristiano Ronaldo', 'Joao Cancelo'],
+        'Netherlands,MUN': ['Robin van Persie', 'Ruud van Nistelrooy', 'Edwin van der Sar'],
+        'Netherlands,INT': ['Wesley Sneijder', 'Denzel Dumfries', 'Stefan de Vrij'],
+        'Netherlands,JUV': ['Matthijs de Ligt', 'Edgar Davids'],
+      },
+    },
+  },
+];
+
+let lastGridFallbackIndex = -1;
+
+function pickGridFallback(): { payload: GridPayload; solution: GridSolution } {
+  if (GRID_FALLBACKS.length === 1) return GRID_FALLBACKS[0];
+
+  let index = Math.floor(Math.random() * GRID_FALLBACKS.length);
+  if (index === lastGridFallbackIndex) {
+    index = (index + 1) % GRID_FALLBACKS.length;
+  }
+  lastGridFallbackIndex = index;
+  return GRID_FALLBACKS[index];
+}
 
 export async function generateGrid(): Promise<{ payload: GridPayload; solution: GridSolution }> {
   try {
@@ -145,16 +233,27 @@ export async function generateGrid(): Promise<{ payload: GridPayload; solution: 
     // Build cells: key = "nationality,teamKey", value = matching player names
     const cells: GridSolution['cells'] = {};
     const playerPool = new Set<string>();
+    const playerHeadshots: Record<string, string> = {};
     for (const nat of rowNats) {
       for (let i = 0; i < colTeams.length; i++) {
         const team = colTeams[i];
         const key = colKeys[i];
         const squad = squads.get(team.idTeam) ?? [];
-        const matching = squad
-          .filter((p) => p.strNationality === nat)
+        const matchingPlayers = squad.filter((p) => p.strNationality === nat && Boolean(p.strPlayer));
+        const matching = matchingPlayers
           .map((p) => p.strPlayer)
           .filter(Boolean);
-        matching.forEach((name) => playerPool.add(name));
+
+        matchingPlayers.forEach((player) => {
+          const name = player.strPlayer;
+          if (!name) return;
+          playerPool.add(name);
+          const image = (player.strCutout ?? player.strThumb ?? player.strRender ?? '').trim();
+          if (image && !playerHeadshots[name]) {
+            playerHeadshots[name] = image;
+          }
+        });
+
         cells[`${nat},${key}`] = matching.length > 0 ? matching : ['?'];
       }
     }
@@ -165,11 +264,12 @@ export async function generateGrid(): Promise<{ payload: GridPayload; solution: 
         cols: colKeys,
         teamMeta,
         playerPool: [...playerPool].sort(),
+        playerHeadshots,
       },
       solution: { cells },
     };
   } catch {
-    return GRID_FALLBACK;
+    return pickGridFallback();
   }
 }
 

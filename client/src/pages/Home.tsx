@@ -157,7 +157,7 @@ interface GameCardProps {
   color: 'pitch-jersey' | 'flame' | 'gold';
   title: string;
   blurb: string;
-  status?: 'not-started' | 'completed';
+  status?: 'not-started' | 'in-progress' | 'completed';
   to: string;
   icon: React.ReactNode;
 }
@@ -193,7 +193,11 @@ function GameCard({ number, color, title, blurb, status, to, icon }: GameCardPro
       </Link>
       {status && (
         <div className="mt-3 border-t border-ink/10 pt-3 font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
-          {status === 'completed' ? '✓ Completed' : 'Not started'}
+          {status === 'completed'
+            ? '✓ Completed'
+            : status === 'in-progress'
+              ? 'In progress'
+              : 'Not started'}
         </div>
       )}
     </article>

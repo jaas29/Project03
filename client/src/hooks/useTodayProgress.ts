@@ -4,10 +4,40 @@ import type { ApiPuzzle } from '../pages/PuzzlePlay';
 
 interface PuzzleProgress {
   type: 'grid' | 'connections' | 'wordle';
-  status: 'not-started' | 'completed';
+  status: 'not-started' | 'in-progress' | 'completed';
 }
 
 const STORAGE_KEY = 'jogo-bonito-daily-progress';
+const GAME_PREFIX = 'jbd.game.';
+
+function hasInProgressState(puzzle: ApiPuzzle): boolean {
+  try {
+    const raw = localStorage.getItem(`${GAME_PREFIX}${puzzle._id}`);
+    if (!raw) return false;
+    const saved = JSON.parse(raw) as Record<string, unknown>;
+
+    if (puzzle.type === 'grid') {
+      const guesses = saved.guesses as Record<string, { value?: string }> | undefined;
+      return !!guesses && Object.values(guesses).some((guess) => !!guess?.value?.trim());
+    }
+
+    if (puzzle.type === 'connections') {
+      const solvedGroups = Array.isArray(saved.solvedGroups) ? saved.solvedGroups : [];
+      const mistakes = typeof saved.mistakes === 'number' ? saved.mistakes : 0;
+      return solvedGroups.length > 0 || mistakes > 0;
+    }
+
+    if (puzzle.type === 'wordle') {
+      const guesses = Array.isArray(saved.guesses) ? saved.guesses : [];
+      const checkedRows = Array.isArray(saved.checkedRows) ? saved.checkedRows : [];
+      return guesses.length > 0 || checkedRows.length > 0;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 function getTodayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -37,7 +67,14 @@ export function useTodayProgress() {
 
         const progressMap: Record<string, PuzzleProgress['status']> = {};
         puzzlesRes.data.puzzles.forEach((puzzle) => {
-          progressMap[puzzle.type] = completedToday[puzzle.type] ? 'completed' : 'not-started';
+          if (completedToday[puzzle.type]) {
+            progressMap[puzzle.type] = 'completed';
+            return;
+          }
+
+          progressMap[puzzle.type] = hasInProgressState(puzzle)
+            ? 'in-progress'
+            : 'not-started';
         });
         setProgress(progressMap);
       } catch (err) {

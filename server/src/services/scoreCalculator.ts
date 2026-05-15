@@ -5,22 +5,51 @@ interface ScoreInput {
   attempts: number;
   durationMs: number;
   solved: boolean;
+  validation?: unknown;
 }
 
 const MAX_SCORE = 1000;
 const TIME_PENALTY_PER_SEC = 1; // lose 1 pt per second after 30s
 
-export function calculateScore({ type, attempts, durationMs, solved }: ScoreInput): number {
+function gridLineBonus(correctCells: string[]): number {
+  const rows = new Map<string, number>();
+  const cols = new Map<string, number>();
+
+  for (const cell of correctCells) {
+    const [row, col] = cell.split(',');
+    if (!row || !col) continue;
+    rows.set(row, (rows.get(row) ?? 0) + 1);
+    cols.set(col, (cols.get(col) ?? 0) + 1);
+  }
+
+  const completedRows = [...rows.values()].filter((count) => count >= 3).length;
+  const completedCols = [...cols.values()].filter((count) => count >= 3).length;
+  return (completedRows + completedCols) * 10;
+}
+
+function scoreGrid(validation: unknown): number {
+  const result = validation as { kind?: string; correctCells?: unknown } | undefined;
+  const correctCells =
+    result?.kind === 'grid' && Array.isArray(result.correctCells)
+      ? result.correctCells.filter((cell): cell is string => typeof cell === 'string')
+      : [];
+
+  const cellPoints = correctCells.length * 10;
+  const linePoints = gridLineBonus(correctCells);
+  return Math.max(0, Math.min(150, cellPoints + linePoints));
+}
+
+export function calculateScore({ type, attempts, durationMs, solved, validation }: ScoreInput): number {
+  if (type === 'grid') {
+    return scoreGrid(validation);
+  }
+
   if (!solved) return 0;
 
   const seconds = Math.floor(durationMs / 1000);
   let base: number;
 
   switch (type) {
-    case 'grid':
-      // 9 cells; lose points per wrong guess
-      base = MAX_SCORE - (attempts - 9) * 30;
-      break;
     case 'connections':
       // 4 groups; each wrong guess costs more
       base = MAX_SCORE - (attempts - 4) * 50;

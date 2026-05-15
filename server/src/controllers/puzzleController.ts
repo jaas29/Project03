@@ -119,6 +119,7 @@ export async function submitPuzzle(req: Request, res: Response, next: NextFuncti
       attempts: body.attempts,
       durationMs: body.durationMs,
       solved,
+      validation,
     });
 
     let streak: number | undefined;
@@ -126,16 +127,21 @@ export async function submitPuzzle(req: Request, res: Response, next: NextFuncti
     if (userId) {
       const existing = await PlayResult.findOne({ userId, puzzleId: puzzle._id });
       if (existing) {
-        res.status(409).json({ error: 'Already submitted', score: existing.score });
-        return;
+        await PlayResult.findByIdAndUpdate(existing._id, {
+          score,
+          attempts: body.attempts,
+          durationMs: body.durationMs,
+          completedAt: new Date(),
+        });
+      } else {
+        await PlayResult.create({
+          userId,
+          puzzleId: puzzle._id,
+          score,
+          attempts: body.attempts,
+          durationMs: body.durationMs,
+        });
       }
-      await PlayResult.create({
-        userId,
-        puzzleId: puzzle._id,
-        score,
-        attempts: body.attempts,
-        durationMs: body.durationMs,
-      });
 
       if (solved) {
         streak = await updateStreak(userId, todayUTC());
