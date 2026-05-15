@@ -232,7 +232,7 @@ function readAssetCache(key: string): Record<string, string> {
       Object.entries(parsed as Record<string, unknown>).filter(
         ([cacheKey, value]) => typeof cacheKey === 'string' && typeof value === 'string' && value.trim().length > 0,
       ),
-    );
+    ) as Record<string, string>;
   } catch {
     return {};
   }
