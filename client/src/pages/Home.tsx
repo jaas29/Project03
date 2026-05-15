@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
 import { AppNavbar } from '../components/AppNavbar';
+import { StreakPanel } from '../components/StreakPanel';
 import { useTodayProgress } from '../hooks/useTodayProgress';
+import flameIcon from '../assets/icons/fire_icon_138608.svg';
 
 export default function Home() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { progress } = useTodayProgress();
 
@@ -15,8 +18,6 @@ export default function Home() {
       day: 'numeric',
     })
     .toUpperCase();
-
-  const initials = (user?.username ?? '??').slice(0, 2).toUpperCase();
 
   return (
     <div className="min-h-screen bg-cream-50 text-ink">
@@ -35,9 +36,6 @@ export default function Home() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
-            <span className="rounded-md border-2 border-flame px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-widest text-flame">
-              New set
-            </span>
             <StreakChip days={user?.streak ?? 0} large />
           </div>
         </div>
@@ -128,18 +126,29 @@ export default function Home() {
 /* ---------- pieces ---------- */
 
 function StreakChip({ days, large = false }: { days: number; large?: boolean }) {
+  const [isStreakOpen, setIsStreakOpen] = useState(false);
   const cls = large
-    ? 'gap-2 px-4 py-2 text-sm'
-    : 'gap-1.5 px-3 py-1 text-[12px]';
+    ? 'gap-0 text-sm'
+    : 'gap-0 text-[12px]';
   return (
-    <div
-      className={`inline-flex items-center rounded-full bg-flame font-mono font-bold uppercase tracking-widest text-cream-50 ${cls}`}
-    >
-      <span aria-hidden>★</span>
-      <span>
-        {days}-day streak
-      </span>
-    </div>
+    <>
+      <button
+        type="button"
+        onClick={() => setIsStreakOpen(true)}
+        className={`inline-flex items-center font-mono font-bold tracking-widest text-ink ${cls}`}
+        title="View streak"
+      >
+        <img
+          src={flameIcon}
+          alt=""
+          aria-hidden
+          className="h-9 w-9 object-contain"
+          style={{ filter: 'brightness(0) saturate(100%) invert(30%) sepia(99%) saturate(2600%) hue-rotate(355deg) brightness(84%) contrast(110%)' }}
+        />
+        <span className="tabular-nums self-center text-xl leading-none tracking-normal">{days}</span>
+      </button>
+      <StreakPanel open={isStreakOpen} days={days} onClose={() => setIsStreakOpen(false)} />
+    </>
   );
 }
 
@@ -163,33 +172,30 @@ function GameCard({ number, color, title, blurb, status, to, icon }: GameCardPro
 
   return (
     <article className="group">
-      <div
-        className={`relative flex h-44 items-center justify-center overflow-hidden rounded-2xl border-2 border-ink ${bgMap[color]}`}
-      >
-        <div className={`absolute left-4 bottom-3 font-mono text-[11px] font-bold uppercase tracking-widest ${textOnTile}`}>
-          No.&nbsp;{number}
-        </div>
-        <div className={`${textOnTile}`}>{icon}</div>
-      </div>
-      <div className="mt-4 flex items-baseline justify-between gap-4">
-        <div>
-          <h3 className="font-display text-2xl text-ink">{title}</h3>
-          <p className="mt-1 text-sm text-ink-soft">{blurb}</p>
-        </div>
-      </div>
-      <div className="mt-4 flex items-center justify-between border-t border-ink/10 pt-3">
-        {status && (
-          <div className="font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
-            {status === 'completed' ? '✓ Completed' : 'Not started'}
-          </div>
-        )}
-        <Link
-          to={to}
-          className="rounded-full bg-ink px-4 py-2 font-display text-[11px] uppercase tracking-widest text-cream-50 transition-transform hover:-translate-y-0.5"
+      <Link to={to} className="block transition-transform hover:-translate-y-0.5">
+        <div
+          className={`relative flex h-44 items-center justify-center overflow-hidden rounded-2xl border-2 border-ink transition-shadow ${bgMap[color]} group-hover:shadow-card-lift`}
         >
-          Play →
-        </Link>
-      </div>
+          <div className={`absolute left-4 bottom-3 font-mono text-[11px] font-bold uppercase tracking-widest ${textOnTile}`}>
+            No.&nbsp;{number}
+          </div>
+          <div className={`${textOnTile}`}>{icon}</div>
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <h3 className="font-display text-2xl text-ink">{title}</h3>
+            <p className="mt-1 text-sm text-ink-soft">{blurb}</p>
+          </div>
+          <div className="shrink-0 rounded-full bg-ink px-4 py-2 font-display text-[11px] uppercase tracking-widest text-cream-50 transition-transform group-hover:-translate-y-0.5">
+            Play →
+          </div>
+        </div>
+      </Link>
+      {status && (
+        <div className="mt-3 border-t border-ink/10 pt-3 font-mono text-[11px] font-medium uppercase tracking-widest text-ink-soft">
+          {status === 'completed' ? '✓ Completed' : 'Not started'}
+        </div>
+      )}
     </article>
   );
 }

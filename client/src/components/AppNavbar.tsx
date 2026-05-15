@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../store/auth';
 import { Wordmark } from './Wordmark';
+import flameIcon from '../assets/icons/fire_icon_138608.svg';
+import { StreakPanel } from './StreakPanel';
 
 export type AppNavPage = 'today' | 'duel' | 'ranks' | 'profile' | 'admin';
 
@@ -12,7 +15,9 @@ const BASE_ITEMS: Array<{ label: string; to: string; key: AppNavPage }> = [
 ];
 
 export function AppNavbar({ activePage }: { activePage: AppNavPage }) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const streakDays = user?.streak ?? 0;
+  const [isStreakOpen, setIsStreakOpen] = useState(false);
   const items = user?.role === 'admin'
     ? [...BASE_ITEMS, { label: 'Admin', to: '/admin', key: 'admin' as const }]
     : BASE_ITEMS;
@@ -44,18 +49,28 @@ export function AppNavbar({ activePage }: { activePage: AppNavPage }) {
         </div>
 
         <div className="hidden items-center gap-4 sm:flex">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-flame px-3 py-1 font-mono text-[12px] font-bold uppercase tracking-widest text-cream-50">
-            <span aria-hidden>★</span>
-            <span>{user?.streak ?? 0}-day streak</span>
-          </div>
           <button
             type="button"
-            onClick={logout}
-            title="Sign out"
+            onClick={() => setIsStreakOpen(true)}
+            className="inline-flex items-center gap-0 font-mono font-bold text-ink"
+            title="View streak"
+          >
+            <img
+              src={flameIcon}
+              alt=""
+              aria-hidden
+              className="h-8 w-8 object-contain"
+              style={{ filter: 'brightness(0) saturate(100%) invert(30%) sepia(99%) saturate(2600%) hue-rotate(355deg) brightness(84%) contrast(110%)' }}
+            />
+            <span className="tabular-nums self-center text-lg leading-none tracking-normal">{streakDays}</span>
+          </button>
+          <Link
+            to="/profile"
+            title="Go to profile"
             className="grid h-10 w-10 place-items-center rounded-full border-2 border-ink bg-gold font-display text-sm text-ink transition-transform hover:-translate-y-0.5"
           >
             {initials}
-          </button>
+          </Link>
         </div>
 
         <nav className="flex w-full items-center gap-1 overflow-x-auto pb-1 md:hidden">
@@ -76,6 +91,7 @@ export function AppNavbar({ activePage }: { activePage: AppNavPage }) {
           })}
         </nav>
       </div>
+      <StreakPanel open={isStreakOpen} days={streakDays} onClose={() => setIsStreakOpen(false)} />
     </header>
   );
 }
