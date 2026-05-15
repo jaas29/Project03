@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { api, extractApiError } from '../api/client';
-import { Wordmark } from '../components/Wordmark';
+import { AppNavbar } from '../components/AppNavbar';
 import { useAuth } from '../store/auth';
 
 interface AdminUser {
@@ -56,14 +56,7 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-cream-50 text-ink">
-      <header className="border-b border-ink/10 bg-cream-50">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Wordmark variant="dark" size="sm" />
-          <Link to="/" className="font-mono text-[11px] uppercase tracking-widest text-ink-soft hover:text-ink">
-            Back to Today
-          </Link>
-        </div>
-      </header>
+      <AppNavbar activePage="admin" />
 
       <main className="mx-auto max-w-6xl px-6 py-10">
         <p className="font-mono text-[11px] font-medium uppercase tracking-widest text-flame">

@@ -1,13 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
-import { Wordmark } from '../components/Wordmark';
-
-const NAV_ITEMS = [
-  { label: 'Today', to: '/' },
-  { label: 'Duel', to: '/duel' },
-  { label: 'Ranks', to: '/ranks' },
-  { label: 'Profile', to: '/profile' },
-];
+import { AppNavbar } from '../components/AppNavbar';
 
 export default function Home() {
   const { user, logout } = useAuth();
@@ -25,43 +18,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-cream-50 text-ink">
-      {/* Top nav */}
-      <header className="border-b border-ink/10 bg-cream-50">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-4 lg:px-10">
-          <div className="flex items-center gap-10">
-            <Wordmark variant="dark" size="sm" />
-            <nav className="hidden items-center gap-1 md:flex">
-              {[...NAV_ITEMS, ...(user?.role === 'admin' ? [{ label: 'Admin', to: '/admin' }] : [])].map((item) => {
-                const active = item.label === 'Today';
-                return (
-                  <Link
-                    key={item.label}
-                    to={item.to}
-                    className={`rounded-full px-5 py-2 font-mono text-[12px] font-medium uppercase tracking-widest transition-colors ${
-                      active
-                        ? 'bg-ink text-cream-50'
-                        : 'text-ink hover:bg-ink/5'
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <StreakChip days={user?.streak ?? 0} />
-            <button
-              onClick={logout}
-              title="Sign out"
-              className="grid h-10 w-10 place-items-center rounded-full border-2 border-ink bg-gold font-display text-sm text-ink transition-transform hover:-translate-y-0.5"
-            >
-              {initials}
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppNavbar activePage="today" />
 
       {/* Main */}
       <main className="mx-auto max-w-7xl px-6 py-10 lg:px-10 lg:py-14">

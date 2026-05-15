@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../store/auth';
-import { Wordmark } from '../components/Wordmark';
+import { AppNavbar } from '../components/AppNavbar';
 
 export default function Profile() {
   const { user, logout } = useAuth();
@@ -9,14 +9,7 @@ export default function Profile() {
 
   return (
     <div className="min-h-screen bg-cream-50 text-ink">
-      <header className="border-b border-ink/10 bg-cream-50">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Wordmark variant="dark" size="sm" />
-          <Link to="/" className="font-mono text-[11px] uppercase tracking-widest text-ink-soft hover:text-ink">
-            Back to Today
-          </Link>
-        </div>
-      </header>
+      <AppNavbar activePage="profile" />
 
       <main className="mx-auto max-w-5xl px-6 py-10">
         <p className="font-mono text-[11px] font-medium uppercase tracking-widest text-gold-dark">

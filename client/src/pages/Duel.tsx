@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../store/auth';
 import { api, extractApiError } from '../api/client';
 import { connectSocket, disconnectSocket, getSocket } from '../socket/socket';
-import { Wordmark } from '../components/Wordmark';
+import { AppNavbar } from '../components/AppNavbar';
 import { GridGame, ConnectionsGame, WordleGame, type ApiPuzzle, type DuelCompleteData } from './PuzzlePlay';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -257,14 +257,7 @@ export default function Duel() {
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-cream-50 text-ink">
-      <header className="border-b border-ink/10 bg-cream-50">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Wordmark variant="dark" size="sm" />
-          <Link to="/" className="font-mono text-[11px] uppercase tracking-widest text-ink-soft hover:text-ink">
-            ← Today
-          </Link>
-        </div>
-      </header>
+      <AppNavbar activePage="duel" />
 
       <main className="mx-auto max-w-5xl px-6 py-10">
         {phase === 'loading' && (
